@@ -1,0 +1,147 @@
+{
+  "name": "org-ai Email Send",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "execute-workflow-trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.runData.logUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "x-webhook-token", "value": "org-ai-n8n-secret-token" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "taskId", "value": "={{ $json.runData.taskId }}" },
+            { "name": "message", "value": "メール送信ワークフロー開始" },
+            { "name": "level", "value": "INFO" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-start",
+      "name": "Log Start",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $('Execute Workflow Trigger').item.json.runData.input ?? '';\n\nconst systemPrompt = `あなたはビジネスメール作成の専門家です。ユーザーの指示に基づいてメールを作成してください。\n\n必ず以下のJSON形式のみを返してください:\n{\n  \"to\": \"宛先メールアドレス\",\n  \"cc\": \"CCアドレス（なければ空文字）\",\n  \"subject\": \"件名\",\n  \"body\": \"本文\"\n}\n\n丁寧で適切なビジネスメールを作成してください。`;\n\nreturn [{ json: { systemPrompt, userInput: input } }];"
+      },
+      "id": "build-email-prompt",
+      "name": "Build Email Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.GROQ_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: [{ role: 'system', content: $json.systemPrompt }, { role: 'user', content: $json.userInput }], max_tokens: 2000, temperature: 0.5, response_format: { type: 'json_object' } }) }}",
+        "options": {}
+      },
+      "id": "groq-email",
+      "name": "Groq Email Generate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Execute Workflow Trigger').item.json.runData.logUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "x-webhook-token", "value": "org-ai-n8n-secret-token" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "taskId", "value": "={{ $('Execute Workflow Trigger').item.json.runData.taskId }}" },
+            { "name": "message", "value": "メール文面の生成完了" },
+            { "name": "level", "value": "INFO" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-generated",
+      "name": "Log Generated",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Execute Workflow Trigger').item.json.runData.callbackUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "x-webhook-token", "value": "org-ai-n8n-secret-token" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "taskId", "value": "={{ $('Execute Workflow Trigger').item.json.runData.taskId }}" },
+            { "name": "status", "value": "DONE" },
+            { "name": "output", "value": "={{ $('Groq Email Generate').item.json.choices?.[0]?.message?.content ?? '' }}" },
+            { "name": "workflowId", "value": "={{ $workflow.id }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "complete-email",
+      "name": "Complete Email Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1340, 300]
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [[{ "node": "Log Start", "type": "main", "index": 0 }]]
+    },
+    "Log Start": {
+      "main": [[{ "node": "Build Email Prompt", "type": "main", "index": 0 }]]
+    },
+    "Build Email Prompt": {
+      "main": [[{ "node": "Groq Email Generate", "type": "main", "index": 0 }]]
+    },
+    "Groq Email Generate": {
+      "main": [[{ "node": "Log Generated", "type": "main", "index": 0 }]]
+    },
+    "Log Generated": {
+      "main": [[{ "node": "Complete Email Task", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "staticData": null
+}

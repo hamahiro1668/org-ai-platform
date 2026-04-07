@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: org-ai-api-gateway
+    runtime: node
+    buildCommand: |
+      npm install --workspaces --include-workspace-root &&
+      npx prisma generate --schema=packages/db-schema/prisma/schema.prisma &&
+      npm run build --workspace=packages/shared-types &&
+      npm run build --workspace=apps/api-gateway
+    startCommand: npx prisma migrate deploy --schema=packages/db-schema/prisma/schema.prisma && node apps/api-gateway/dist/index.js
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: AI_ENGINE_URL
+        sync: false
+
+  - type: web
+    name: org-ai-ai-engine
+    runtime: python
+    rootDir: apps/ai-engine
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: API_GATEWAY_URL
+        sync: false

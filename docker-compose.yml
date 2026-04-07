@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  n8n:
+    image: n8nio/n8n
+    ports:
+      - "5678:5678"
+    env_file: .env
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=false
+      - WEBHOOK_URL=http://localhost:5678
+      - GENERIC_TIMEZONE=Asia/Tokyo
+      - N8N_PUBLIC_API_DISABLED=false
+    volumes:
+      - n8n_data:/home/node/.n8n
+    restart: unless-stopped
+
+  ai-engine:
+    build:
+      context: .
+      dockerfile: apps/ai-engine/Dockerfile
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      - DATABASE_URL=file:/app/data/app.db
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: apps/api-gateway/Dockerfile
+    ports:
+      - "4000:4000"
+    depends_on:
+      ai-engine:
+        condition: service_healthy
+      n8n:
+        condition: service_started
+    env_file: .env
+    environment:
+      - DATABASE_URL=file:/app/data/app.db
+      - AI_ENGINE_URL=http://ai-engine:8000
+      - N8N_URL=http://n8n:5678
+      - N8N_WORKFLOW_ID=4IawO5ll3qF0sVpV
+      - N8N_API_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhMzMzOTliOC0wNmYzLTRkY2QtYmFmOS1kNTNmZTIzNmE5YzciLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwianRpIjoiMjc2ODlkYzUtNDA3NS00MDQzLWEwMWMtMjJkMjlkZjBkNTYxIiwiaWF0IjoxNzcyOTcxMDEyLCJleHAiOjE4MDQ1MDcwMTI3Mjl9.cANyOCH12QI44puUM-6DETfmocHKBjNe8pnu-V8oNiA
+      # ローカルn8nを使用（クラウドは手動更新後に有効化）
+      # - N8N_CLOUD_URL=https://hamahiro.app.n8n.cloud
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_URL: /api
+        VITE_WS_URL: ws://localhost:4000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api-gateway
+
+volumes:
+  n8n_data:

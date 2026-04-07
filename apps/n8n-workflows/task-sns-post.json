@@ -1,0 +1,147 @@
+{
+  "name": "org-ai SNS Post",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "execute-workflow-trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.runData.logUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "x-webhook-token", "value": "org-ai-n8n-secret-token" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "taskId", "value": "={{ $json.runData.taskId }}" },
+            { "name": "message", "value": "SNS投稿ワークフロー開始" },
+            { "name": "level", "value": "INFO" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-start",
+      "name": "Log Start",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $('Execute Workflow Trigger').item.json.runData.input ?? '';\nconst platform = $('Execute Workflow Trigger').item.json.runData.platform ?? 'twitter';\n\nconst platformLimits = { twitter: 280, instagram: 2200, linkedin: 3000 };\nconst maxLen = platformLimits[platform] ?? 280;\n\nconst systemPrompt = `あなたはSNSマーケティングの専門家です。以下のプラットフォーム向けに投稿文を作成してください。\nプラットフォーム: ${platform}\n文字数制限: ${maxLen}文字以内\n\n必ず以下のJSON形式のみを返してください:\n{\n  \"content\": \"投稿本文\",\n  \"hashtags\": [\"タグ1\", \"タグ2\"],\n  \"platform\": \"${platform}\"\n}\n\nハッシュタグは#なしで配列に入れてください。`;\n\nreturn [{ json: { systemPrompt, userInput: input, platform } }];"
+      },
+      "id": "build-sns-prompt",
+      "name": "Build SNS Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.GROQ_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: [{ role: 'system', content: $json.systemPrompt }, { role: 'user', content: $json.userInput }], max_tokens: 1000, temperature: 0.8, response_format: { type: 'json_object' } }) }}",
+        "options": {}
+      },
+      "id": "groq-sns",
+      "name": "Groq SNS Generate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Execute Workflow Trigger').item.json.runData.logUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "x-webhook-token", "value": "org-ai-n8n-secret-token" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "taskId", "value": "={{ $('Execute Workflow Trigger').item.json.runData.taskId }}" },
+            { "name": "message", "value": "SNS投稿文の生成完了。投稿準備中..." },
+            { "name": "level", "value": "INFO" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-generated",
+      "name": "Log Generated",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Execute Workflow Trigger').item.json.runData.callbackUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "x-webhook-token", "value": "org-ai-n8n-secret-token" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "taskId", "value": "={{ $('Execute Workflow Trigger').item.json.runData.taskId }}" },
+            { "name": "status", "value": "DONE" },
+            { "name": "output", "value": "={{ $('Groq SNS Generate').item.json.choices?.[0]?.message?.content ?? '' }}" },
+            { "name": "workflowId", "value": "={{ $workflow.id }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "complete-sns",
+      "name": "Complete SNS Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1340, 300]
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [[{ "node": "Log Start", "type": "main", "index": 0 }]]
+    },
+    "Log Start": {
+      "main": [[{ "node": "Build SNS Prompt", "type": "main", "index": 0 }]]
+    },
+    "Build SNS Prompt": {
+      "main": [[{ "node": "Groq SNS Generate", "type": "main", "index": 0 }]]
+    },
+    "Groq SNS Generate": {
+      "main": [[{ "node": "Log Generated", "type": "main", "index": 0 }]]
+    },
+    "Log Generated": {
+      "main": [[{ "node": "Complete SNS Task", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "staticData": null
+}

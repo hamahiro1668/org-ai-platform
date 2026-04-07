@@ -1,0 +1,118 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x"]
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  passwordHash String
+  name         String
+  role         String        @default("OWNER")
+  orgId        String?
+  org          Organization? @relation(fields: [orgId], references: [id])
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Organization {
+  id        String        @id @default(cuid())
+  name      String
+  plan      String        @default("STARTER")
+  users     User[]
+  sessions  ChatSession[]
+  tasks     Task[]
+  files     UploadedFile[]
+  createdAt DateTime      @default(now())
+}
+
+model ChatSession {
+  id        String       @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id])
+  title     String?
+  messages  Message[]
+  createdAt DateTime     @default(now())
+}
+
+model Message {
+  id         String      @id @default(cuid())
+  sessionId  String
+  session    ChatSession @relation(fields: [sessionId], references: [id])
+  role       String
+  content    String
+  department String?
+  createdAt  DateTime    @default(now())
+}
+
+model Task {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id])
+  title           String
+  status          String       @default("PENDING")
+  department      String
+  taskType        String?
+  input           String
+  output          String?
+  approvalData    String?
+  n8nWorkflowId   String?
+  executionResult String?
+  retryCount      Int          @default(0)
+  lastError       String?
+  executedAt      DateTime?
+  logs            TaskLog[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model TaskLog {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id])
+  message   String
+  level     String   @default("INFO")
+  createdAt DateTime @default(now())
+}
+
+model AILog {
+  id         String   @id @default(cuid())
+  orgId      String
+  department String
+  provider   String
+  model      String
+  inputText  String
+  outputText String?
+  tokens     Int?
+  latencyMs  Int?
+  riskScore  Float?
+  createdAt  DateTime @default(now())
+}
+
+model RiskEvent {
+  id          String   @id @default(cuid())
+  orgId       String
+  aiLogId     String?
+  type        String
+  description String
+  severity    String
+  resolved    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model UploadedFile {
+  id           String       @id @default(cuid())
+  orgId        String
+  org          Organization @relation(fields: [orgId], references: [id])
+  uploadedBy   String
+  originalName String
+  storagePath  String
+  mimeType     String
+  sizeBytes    Int
+  createdAt    DateTime     @default(now())
+}
