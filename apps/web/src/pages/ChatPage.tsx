@@ -39,6 +39,11 @@ interface InlineTask {
   output?: string;      // タスク完了時の出力
 }
 
+/** JSONコードブロック(```json ... ```)をメッセージ本文から除去する */
+function stripJsonBlocks(text: string): string {
+  return text.replace(/```json\s*[\s\S]*?```/g, '').trim();
+}
+
 export default function ChatPage() {
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
@@ -619,7 +624,7 @@ export default function ChatPage() {
                         <div className={`text-sm leading-relaxed ${
                           msg.role === 'user' ? 'text-[#2D2D2D]' : 'text-[#2D2D2D]'
                         }`}>
-                          <p className="whitespace-pre-wrap">{msg.content}</p>
+                          <p className="whitespace-pre-wrap">{msg.role === 'assistant' ? stripJsonBlocks(msg.content) : msg.content}</p>
                         </div>
                       </div>
                     </motion.div>
@@ -674,7 +679,7 @@ export default function ChatPage() {
                         </div>
                         <div className="text-sm leading-relaxed text-[#2D2D2D]">
                           <p className="whitespace-pre-wrap">
-                            {streamingContent}
+                            {stripJsonBlocks(streamingContent ?? '')}
                             <span className="inline-block w-0.5 h-4 bg-[#E8863A] ml-0.5 animate-pulse align-middle" />
                           </p>
                         </div>
