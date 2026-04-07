@@ -49,7 +49,7 @@ export default function LoginPage() {
           >
             <Sparkles size={24} className="text-white" />
           </motion.div>
-          <h1 className="text-2xl font-bold text-[#2D2D2D] tracking-tight">Product B</h1>
+          <h1 className="text-2xl font-bold text-[#2D2D2D] tracking-tight">FLOW - みんなのAIオフィス</h1>
           <p className="text-sm text-[#8A8A8A] mt-1">AI組織エージェントプラットフォーム</p>
         </div>
 
