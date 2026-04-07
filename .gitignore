@@ -4,6 +4,9 @@ dist/
 data/files/
 data/app.db
 data/app.db-journal
+*.db
+*.db-journal
+packages/data/
 __pycache__/
 *.pyc
 .venv/
