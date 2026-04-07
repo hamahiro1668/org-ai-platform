@@ -83,6 +83,44 @@ async function triggerN8nWorkflow(task: { id: string; orgId: string; title: stri
   }
 }
 
+/** n8n未接続時のフォールバック: AI Engineで直接タスクを実行 */
+async function executeTaskViaAiEngine(task: { id: string; orgId: string; title: string; input: string; department: string }) {
+  const aiEngineUrl = process.env.AI_ENGINE_URL ?? 'http://localhost:8000';
+  try {
+    await prisma.taskLog.create({
+      data: { taskId: task.id, message: 'AI Engineで直接実行を開始', level: 'INFO' },
+    });
+    const res = await fetch(`${aiEngineUrl}/orchestrate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: task.input,
+        org_id: task.orgId,
+        department: task.department,
+        plan: 'STARTER',
+      }),
+    });
+    if (!res.ok) throw new Error(`AI Engine returned ${res.status}`);
+    const result = await res.json() as { response: string; department: string };
+    await prisma.task.update({
+      where: { id: task.id },
+      data: { status: 'DONE', output: result.response, executedAt: new Date() },
+    });
+    await prisma.taskLog.create({
+      data: { taskId: task.id, message: 'AI Engineで実行完了', level: 'INFO' },
+    });
+  } catch (e) {
+    console.error('[ai-engine-fallback] failed:', e);
+    await prisma.task.update({
+      where: { id: task.id },
+      data: { status: 'FAILED', lastError: String(e) },
+    });
+    await prisma.taskLog.create({
+      data: { taskId: task.id, message: `実行失敗: ${String(e)}`, level: 'ERROR' },
+    });
+  }
+}
+
 const createTaskSchema = z.object({
   title: z.string().min(1).max(200),
   department: z.string(),
@@ -158,9 +196,14 @@ export async function taskRoutes(app: FastifyInstance): Promise<void> {
       data: { taskId: task.id, message: `タスクを作成しました: ${task.title}`, level: 'INFO' },
     });
 
-    // QUEUED状態で作成された場合、n8nを自動トリガー
+    // QUEUED状態で作成された場合、n8n or AI Engineで実行
     if (task.status === 'QUEUED') {
-      triggerN8nWorkflow(task);
+      const workflowId = await resolveWorkflowId();
+      if (workflowId) {
+        triggerN8nWorkflow(task);
+      } else {
+        executeTaskViaAiEngine(task);
+      }
     }
 
     return reply.code(201).send({ success: true, data: task });
@@ -190,9 +233,14 @@ export async function taskRoutes(app: FastifyInstance): Promise<void> {
       await prisma.taskLog.create({
         data: { taskId, message: `ステータス変更: ${task.status} → ${result.data.status}`, level: 'INFO' },
       });
-      // QUEUED になったら n8n をトリガー（fire-and-forget）
+      // QUEUED になったら n8n or AI Engine で実行
       if (result.data.status === 'QUEUED') {
-        triggerN8nWorkflow(updated);
+        const workflowId = await resolveWorkflowId();
+        if (workflowId) {
+          triggerN8nWorkflow(updated);
+        } else {
+          executeTaskViaAiEngine(updated);
+        }
       }
     }
 
@@ -224,8 +272,13 @@ export async function taskRoutes(app: FastifyInstance): Promise<void> {
       data: { taskId, message: `タスクを承認しました（${body.data?.action ?? '実行'}）`, level: 'INFO' },
     });
 
-    // n8n をトリガーして実行フェーズ開始
-    triggerN8nWorkflow(updated);
+    // n8n or AI Engine で実行
+    const workflowId = await resolveWorkflowId();
+    if (workflowId) {
+      triggerN8nWorkflow(updated);
+    } else {
+      executeTaskViaAiEngine(updated);
+    }
 
     return reply.send({ success: true, data: updated });
   });
