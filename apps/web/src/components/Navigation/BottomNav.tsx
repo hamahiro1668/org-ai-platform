@@ -1,10 +1,10 @@
 import { motion } from 'framer-motion';
-import { Home, BarChart3, MessageCircle, Sparkles } from 'lucide-react';
+import { Home, ClipboardList, MessageCircle, Sparkles } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 const navItems = [
   { icon: Home, label: 'ホーム', path: '/' },
-  { icon: BarChart3, label: '分析', path: '/governance' },
+  { icon: ClipboardList, label: 'タスク', path: '/tasks' },
   { icon: Sparkles, label: 'AI', path: '/chat', isCenter: true },
   { icon: MessageCircle, label: 'チャット', path: '/chat' },
 ];

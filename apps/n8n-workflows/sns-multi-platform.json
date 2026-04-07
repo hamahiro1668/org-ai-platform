@@ -1,0 +1,133 @@
+{
+  "name": "org-ai SNS Multi-Platform",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "execute-workflow-trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.runData.logUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "x-webhook-token", "value": "org-ai-n8n-secret-token" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "taskId", "value": "={{ $json.runData.taskId }}" },
+            { "name": "message", "value": "SNSマルチプラットフォーム投稿ワークフロー開始" },
+            { "name": "level", "value": "INFO" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-start",
+      "name": "Log Start",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $('Execute Workflow Trigger').item.json.runData.input ?? '';\n\nconst systemPrompt = `あなたはSNSマーケティングの専門家です。ユーザーの指示に基づき、以下の3つのプラットフォーム向けに投稿コンテンツを一括生成してください。\n\n必ず以下のJSON形式のみを返してください:\n{\n  \"taskType\": \"sns_multi\",\n  \"theme\": \"投稿テーマの要約\",\n  \"platforms\": {\n    \"x\": {\n      \"content\": \"X(Twitter)用投稿文（140文字以内）\",\n      \"hashtags\": [\"タグ1\", \"タグ2\", \"タグ3\"]\n    },\n    \"instagram\": {\n      \"content\": \"Instagram用キャプション（改行多め、絵文字活用）\",\n      \"hashtags\": [\"タグ1\", \"タグ2\", \"タグ3\", \"タグ4\", \"タグ5\", \"タグ6\", \"タグ7\", \"タグ8\", \"タグ9\", \"タグ10\"]\n    },\n    \"note\": {\n      \"title\": \"note記事タイトル\",\n      \"content\": \"note用記事本文（1000-3000文字、マークダウン形式、見出し構造あり）\",\n      \"summary\": \"記事の要約（100文字以内）\"\n    }\n  }\n}\n\n各プラットフォームの特徴:\n- X: 簡潔で印象的、CTA含む、ハッシュタグ2-3個\n- Instagram: ビジュアル訴求、絵文字活用、ハッシュタグ10-15個、最後にCTA\n- note: 読み物形式、見出し構造、読みやすい文体、1000-3000文字`;\n\nreturn [{ json: { systemPrompt, userInput: input } }];"
+      },
+      "id": "build-multi-prompt",
+      "name": "Build Multi-Platform Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.GROQ_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: [{ role: 'system', content: $json.systemPrompt }, { role: 'user', content: $json.userInput }], max_tokens: 4000, temperature: 0.7, response_format: { type: 'json_object' } }) }}",
+        "options": {}
+      },
+      "id": "groq-multi-generate",
+      "name": "Groq Multi-Platform Generate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Execute Workflow Trigger').item.json.runData.logUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "x-webhook-token", "value": "org-ai-n8n-secret-token" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "taskId", "value": "={{ $('Execute Workflow Trigger').item.json.runData.taskId }}" },
+            { "name": "message", "value": "3プラットフォーム分のコンテンツ生成完了（X・Instagram・note）" },
+            { "name": "level", "value": "INFO" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-generated",
+      "name": "Log Generated",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Execute Workflow Trigger').item.json.runData.callbackUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "x-webhook-token", "value": "org-ai-n8n-secret-token" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "taskId", "value": "={{ $('Execute Workflow Trigger').item.json.runData.taskId }}" },
+            { "name": "status", "value": "DONE" },
+            { "name": "output", "value": "={{ $('Groq Multi-Platform Generate').item.json.choices[0].message.content }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "complete-task",
+      "name": "Complete Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1340, 300]
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": { "main": [[{ "node": "Log Start", "type": "main", "index": 0 }]] },
+    "Log Start": { "main": [[{ "node": "Build Multi-Platform Prompt", "type": "main", "index": 0 }]] },
+    "Build Multi-Platform Prompt": { "main": [[{ "node": "Groq Multi-Platform Generate", "type": "main", "index": 0 }]] },
+    "Groq Multi-Platform Generate": { "main": [[{ "node": "Log Generated", "type": "main", "index": 0 }]] },
+    "Log Generated": { "main": [[{ "node": "Complete Task", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": []
+}

@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Loader, Plus, ClipboardList } from 'lucide-react';
+import { Loader, Plus, ClipboardList, CheckCircle2, Clock, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { useStore } from '../taskmanager/store/index';
 import { executeTask, refineResult } from '../taskmanager/ai/executor';
 import ExecutiveDashboard from '../taskmanager/components/ExecutiveDashboard';
@@ -40,6 +40,16 @@ async function queueTaskOnBackend(task: Task): Promise<string | null> {
   }
 }
 
+interface BackendTask {
+  id: string;
+  title: string;
+  status: string;
+  department: string;
+  output: string | null;
+  createdAt: string;
+  logs: { id: string; message: string; level: string; createdAt: string }[];
+}
+
 export default function TaskManagerPage() {
   const {
     tasks, projects, executionState, executionQueue, showTaskInput,
@@ -47,6 +57,28 @@ export default function TaskManagerPage() {
     startExecution, setStep, setResult, setExecutionError,
     clearExecution, advanceQueue, clearQueue, setShowTaskInput,
   } = useStore();
+
+  // バックエンドタスク一覧（LLMから自動生成されたもの）
+  const [backendTasks, setBackendTasks] = useState<BackendTask[]>([]);
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [taskFilter, setTaskFilter] = useState<'ALL' | 'QUEUED' | 'DONE' | 'FAILED'>('ALL');
+
+  const fetchBackendTasks = useCallback(async () => {
+    try {
+      const res = await api.get<{ success: boolean; data: BackendTask[] }>('/tasks');
+      if (res.data.success) setBackendTasks(res.data.data);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    fetchBackendTasks();
+    const interval = setInterval(fetchBackendTasks, 10000);
+    return () => clearInterval(interval);
+  }, [fetchBackendTasks]);
+
+  const filteredBackendTasks = backendTasks.filter(
+    (t) => taskFilter === 'ALL' || t.status === taskFilter,
+  );
 
   useEffect(() => { loadAll(); }, []);
 
@@ -199,6 +231,84 @@ export default function TaskManagerPage() {
           新しいタスク
         </motion.button>
       </div>
+
+      {/* Backend Tasks from LLM */}
+      {backendTasks.length > 0 && (
+        <div className="px-6 py-3 border-b border-[#eae8e3] bg-white/40">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-bold text-[#2D2D2D]">AI実行タスク ({backendTasks.length})</h3>
+            <div className="flex gap-1">
+              {(['ALL', 'QUEUED', 'DONE', 'FAILED'] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setTaskFilter(f)}
+                  className={`text-[10px] px-2.5 py-1 rounded-full font-medium transition-colors ${
+                    taskFilter === f
+                      ? 'bg-[#E8863A] text-white'
+                      : 'bg-white text-[#8A8A8A] hover:bg-gray-100'
+                  }`}
+                >
+                  {f === 'ALL' ? '全て' : f === 'QUEUED' ? '実行中' : f === 'DONE' ? '完了' : '失敗'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-2 max-h-60 overflow-y-auto">
+            {filteredBackendTasks.map((bt) => (
+              <motion.div
+                key={bt.id}
+                className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 cursor-pointer"
+                whileHover={{ scale: 1.005 }}
+                onClick={() => setExpandedTaskId(expandedTaskId === bt.id ? null : bt.id)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {bt.status === 'DONE' && <CheckCircle2 size={14} className="text-emerald-500 flex-shrink-0" />}
+                    {bt.status === 'QUEUED' && <Clock size={14} className="text-orange-400 flex-shrink-0" />}
+                    {bt.status === 'FAILED' && <XCircle size={14} className="text-red-400 flex-shrink-0" />}
+                    {bt.status === 'PENDING' && <Clock size={14} className="text-gray-400 flex-shrink-0" />}
+                    <span className="text-xs font-medium text-[#2D2D2D] truncate">{bt.title}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-[#8A8A8A] flex-shrink-0">{bt.department}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-[#BCBCBC]">{new Date(bt.createdAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}</span>
+                    {expandedTaskId === bt.id ? <ChevronUp size={12} className="text-[#BCBCBC]" /> : <ChevronDown size={12} className="text-[#BCBCBC]" />}
+                  </div>
+                </div>
+                <AnimatePresence>
+                  {expandedTaskId === bt.id && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
+                      {bt.output && (
+                        <div className="mt-2 p-2 bg-gray-50 rounded-xl text-xs text-[#2D2D2D] whitespace-pre-wrap max-h-40 overflow-y-auto">
+                          {bt.output.slice(0, 500)}{bt.output.length > 500 ? '...' : ''}
+                        </div>
+                      )}
+                      {bt.logs.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {bt.logs.slice(-5).map((log) => (
+                            <div key={log.id} className="text-[10px] text-[#8A8A8A] flex items-center gap-1">
+                              <span className={log.level === 'ERROR' ? 'text-red-400' : 'text-[#BCBCBC]'}>●</span>
+                              {log.message}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {!bt.output && bt.logs.length === 0 && (
+                        <div className="mt-2 text-[10px] text-[#BCBCBC]">実行結果なし</div>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
