@@ -21,9 +21,11 @@ async function start(): Promise<void> {
     credentials: true,
   });
 
-  await app.register(jwt, {
-    secret: process.env.JWT_SECRET ?? 'fallback-secret-change-in-production',
-  });
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret || jwtSecret.length < 32) {
+    throw new Error('JWT_SECRET is required and must be at least 32 characters. Set it in your environment.');
+  }
+  await app.register(jwt, { secret: jwtSecret });
 
   await app.register(multipart, { limits: { fileSize: 20 * 1024 * 1024 } }); // 20MB
   await app.register(websocket);

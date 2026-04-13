@@ -9,16 +9,31 @@ services:
       npm run build --workspace=apps/api-gateway
     startCommand: npx prisma migrate deploy --schema=packages/db-schema/prisma/schema.prisma && node apps/api-gateway/dist/index.js
     plan: free
+    healthCheckPath: /health
     envVars:
+      - key: NODE_ENV
+        value: production
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET
         sync: false
       - key: GROQ_API_KEY
         sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
       - key: FRONTEND_URL
         sync: false
       - key: AI_ENGINE_URL
+        sync: false
+      - key: N8N_CLOUD_URL
+        sync: false
+      - key: N8N_API_KEY
+        sync: false
+      - key: N8N_WORKFLOW_ID
+        sync: false
+      - key: N8N_WEBHOOK_AUTH_TOKEN
         sync: false
 
   - type: web
@@ -28,10 +43,15 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     plan: free
+    healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
         sync: false
       - key: GROQ_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
         sync: false
       - key: API_GATEWAY_URL
         sync: false

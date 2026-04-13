@@ -1,5 +1,7 @@
 node_modules/
 dist/
+.turbo/
+**/.turbo/
 .env
 data/files/
 data/app.db
