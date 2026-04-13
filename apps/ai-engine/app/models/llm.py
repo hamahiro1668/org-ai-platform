@@ -12,6 +12,7 @@ class LLMRequest(BaseModel):
     department: str
     org_id: str
     plan: str = "STARTER"
+    json_mode: bool = False
 
 
 class LLMResponse(BaseModel):
@@ -25,7 +26,7 @@ class LLMResponse(BaseModel):
 class OrchestateRequest(BaseModel):
     message: str
     org_id: str
-    session_id: str
+    session_id: str = ""
     plan: str = "STARTER"
     department: Optional[str] = None
 

@@ -14,7 +14,10 @@ import SchedulePanel from '../taskmanager/components/panels/SchedulePanel';
 import { AnalyticsPanel } from '../taskmanager/components/panels/AnalyticsPanel';
 import { SNSPanel } from '../taskmanager/components/panels/SNSPanel';
 import ProjectResultsPanel from '../taskmanager/components/panels/ProjectResultsPanel';
+import TaskDashboardStats from '../components/TaskManager/TaskDashboardStats';
+import PastDeliverablesSection from '../components/TaskManager/PastDeliverablesSection';
 import { api } from '../services/api';
+import { humanizeTaskManagerError } from '../utils/humanizeLlmError';
 import type { Task } from '../taskmanager/types/index';
 
 async function queueTaskOnBackend(task: Task): Promise<string | null> {
@@ -91,7 +94,7 @@ export default function TaskManagerPage() {
       setResult(result);
       await updateTask(task.id, { executionResult: result });
     } catch (e) {
-      setExecutionError(e instanceof Error ? e.message : '実行中にエラーが発生しました');
+      setExecutionError(humanizeTaskManagerError(e));
     }
   };
 
@@ -113,7 +116,7 @@ export default function TaskManagerPage() {
       setResult(refined);
       await updateTask(executionState.activeTaskId, { executionResult: refined });
     } catch (e) {
-      setExecutionError(e instanceof Error ? e.message : '修正中にエラーが発生しました');
+      setExecutionError(humanizeTaskManagerError(e));
     }
   };
 
@@ -130,7 +133,7 @@ export default function TaskManagerPage() {
       advanceQueue();
       clearExecution();
     } catch (e) {
-      setExecutionError(e instanceof Error ? e.message : '実行中にエラーが発生しました');
+      setExecutionError(humanizeTaskManagerError(e));
       clearQueue();
     } finally {
       autoExecutingRef.current = false;
@@ -213,17 +216,19 @@ export default function TaskManagerPage() {
       {/* Header */}
       <div className="bg-white/80 backdrop-blur-sm border-b border-[#eae8e3] px-6 py-4 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-[#E8863A]/10 rounded-2xl flex items-center justify-center">
-            <ClipboardList size={18} className="text-[#E8863A]" />
+          <div className="w-10 h-10 bg-[#8b85ff]/10 rounded-2xl flex items-center justify-center">
+            <ClipboardList size={18} className="text-[#8b85ff]" />
           </div>
           <div>
             <h2 className="text-lg font-bold text-[#2D2D2D]">タスク管理</h2>
-            <p className="text-xs text-[#8A8A8A]">チャットから自動生成・承認して実行</p>
+            <p className="text-xs text-[#8A8A8A]">
+              チャットは相談、ここではメール・資料など<span className="text-[#2D2D2D]/80 font-medium">成果物パイプライン</span>を実行します
+            </p>
           </div>
         </div>
         <motion.button
           onClick={() => setShowTaskInput(true)}
-          className="flex items-center gap-2 bg-[#E8863A] hover:bg-[#d6762f] text-white text-sm font-semibold px-5 py-2.5 rounded-2xl transition-all shadow-md shadow-orange-200/50"
+          className="flex items-center gap-2 bg-[#8b85ff] hover:bg-[#7c76f2] text-white text-sm font-semibold px-5 py-2.5 rounded-2xl transition-all shadow-md shadow-glow-primary"
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
         >
@@ -231,6 +236,12 @@ export default function TaskManagerPage() {
           新しいタスク
         </motion.button>
       </div>
+
+      {/* Dashboard Stats */}
+      <TaskDashboardStats tasks={backendTasks} />
+
+      {/* Past Deliverables */}
+      <PastDeliverablesSection tasks={backendTasks.filter((t) => t.status === 'DONE')} />
 
       {/* Backend Tasks from LLM */}
       {backendTasks.length > 0 && (
@@ -244,7 +255,7 @@ export default function TaskManagerPage() {
                   onClick={() => setTaskFilter(f)}
                   className={`text-[10px] px-2.5 py-1 rounded-full font-medium transition-colors ${
                     taskFilter === f
-                      ? 'bg-[#E8863A] text-white'
+                      ? 'bg-[#8b85ff] text-white'
                       : 'bg-white text-[#8A8A8A] hover:bg-gray-100'
                   }`}
                 >
@@ -341,18 +352,18 @@ export default function TaskManagerPage() {
                 transition={{ duration: 0.3 }}
               >
                 {isQueueMode && executionQueue && (
-                  <div className="bg-white border border-[#E8863A]/20 rounded-3xl p-5 space-y-3 shadow-sm">
+                  <div className="bg-white border border-[#8b85ff]/20 rounded-3xl p-5 space-y-3 shadow-sm">
                     <div className="flex items-center gap-2">
                       <motion.div animate={{ rotate: 360 }} transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}>
-                        <Loader size={14} className="text-[#E8863A]" />
+                        <Loader size={14} className="text-[#8b85ff]" />
                       </motion.div>
-                      <span className="text-sm font-bold text-[#E8863A]">
+                      <span className="text-sm font-bold text-[#8b85ff]">
                         自動実行中 ({Math.min(executionQueue.currentIndex + 1, executionQueue.taskIds.length)}/{executionQueue.taskIds.length})
                       </span>
                     </div>
                     <div className="w-full bg-[#f5f5f0] rounded-full h-2">
                       <motion.div
-                        className="bg-[#E8863A] h-2 rounded-full"
+                        className="bg-[#8b85ff] h-2 rounded-full"
                         initial={{ width: 0 }}
                         animate={{ width: `${(executionQueue.currentIndex / executionQueue.taskIds.length) * 100}%` }}
                         transition={{ duration: 0.4 }}
@@ -371,9 +382,9 @@ export default function TaskManagerPage() {
                         ) : (
                           <>
                             <motion.div animate={{ rotate: 360 }} transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}>
-                              <Loader size={13} className="text-[#E8863A]" />
+                              <Loader size={13} className="text-[#8b85ff]" />
                             </motion.div>
-                            <span className="text-xs font-bold text-[#E8863A]">n8n バックグラウンド実行中...</span>
+                            <span className="text-xs font-bold text-[#8b85ff]">n8n バックグラウンド実行中...</span>
                           </>
                         )}
                       </div>
@@ -404,7 +415,17 @@ export default function TaskManagerPage() {
                 )}
 
                 {(showAIPanel || hasResult) && (
-                  <AIStatusDisplay steps={executionState.steps} error={executionState.error} />
+                  <AIStatusDisplay
+                    steps={executionState.steps}
+                    error={executionState.error}
+                    onRetry={
+                      executionState.error && activeTask
+                        ? () => {
+                            void handleExecute(activeTask);
+                          }
+                        : undefined
+                    }
+                  />
                 )}
 
                 {hasResult && executionState.result && !isQueueMode && !queueCompleted && (
@@ -427,13 +448,13 @@ export default function TaskManagerPage() {
                     {executionState.result.type === 'analytics' && executionState.result.analytics && (
                       <div className="bg-white border border-[#eae8e3] rounded-3xl p-5 shadow-sm">
                         <AnalyticsPanel result={executionState.result.analytics} />
-                        <motion.button onClick={handleApprove} className="mt-3 w-full bg-[#E8863A] hover:bg-[#d6762f] text-white text-xs font-semibold py-2.5 rounded-xl transition-all" whileTap={{ scale: 0.97 }}>承認</motion.button>
+                        <motion.button onClick={handleApprove} className="mt-3 w-full bg-[#8b85ff] hover:bg-[#7c76f2] text-white text-xs font-semibold py-2.5 rounded-xl transition-all" whileTap={{ scale: 0.97 }}>承認</motion.button>
                       </div>
                     )}
                     {executionState.result.type === 'sns' && executionState.result.sns && (
                       <div className="bg-white border border-[#eae8e3] rounded-3xl p-5 shadow-sm">
                         <SNSPanel result={executionState.result.sns} />
-                        <motion.button onClick={handleApprove} className="mt-3 w-full bg-[#E8863A] hover:bg-[#d6762f] text-white text-xs font-semibold py-2.5 rounded-xl transition-all" whileTap={{ scale: 0.97 }}>承認</motion.button>
+                        <motion.button onClick={handleApprove} className="mt-3 w-full bg-[#8b85ff] hover:bg-[#7c76f2] text-white text-xs font-semibold py-2.5 rounded-xl transition-all" whileTap={{ scale: 0.97 }}>承認</motion.button>
                       </div>
                     )}
                     <button className="text-xs text-[#BCBCBC] hover:text-[#8A8A8A] font-medium w-full text-center py-1 transition-colors" onClick={clearExecution}>閉じる</button>

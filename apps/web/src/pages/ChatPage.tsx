@@ -3,31 +3,18 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Send, Plus, Bot, User as UserIcon, X, PanelLeftClose, PanelLeftOpen,
-  Mic, MicOff, Loader2, Sparkles, Paperclip, File as FileIcon,
+  Mic, MicOff, Loader2, Sparkles, Paperclip, File as FileIcon, ClipboardList,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
 import { createTaskFromChat } from '../taskmanager/utils/createTaskFromChat';
+import { humanizeTaskManagerError } from '../utils/humanizeLlmError';
 import { AgentSuggestions } from '../components/Chat/AgentSuggestions';
 import { InlineChatResult } from '../components/Chat/InlineChatResult';
+import { TaskProgressSidebar } from '../components/Chat/TaskProgressSidebar';
 import type { ChatSession, Message } from '@org-ai/shared-types';
-
-
-const DEPT_LABEL: Record<string, string> = {
-  SALES: '営業部', MARKETING: 'マーケ部', ACCOUNTING: '経理部', ANALYTICS: 'データ分析', GENERAL: '総合',
-};
-const DEPT_ACCENT: Record<string, string> = {
-  SALES: '#E8863A', MARKETING: '#8B5CF6', ACCOUNTING: '#D97706', ANALYTICS: '#7B61FF', GENERAL: '#0EA5E9',
-};
-
-const DEPARTMENTS = [
-  { key: 'SALES', label: '営業部', icon: '🤝' },
-  { key: 'MARKETING', label: 'マーケ部', icon: '📣' },
-  { key: 'ACCOUNTING', label: '経理部', icon: '📊' },
-  { key: 'ANALYTICS', label: 'データ分析', icon: '📈' },
-  { key: 'GENERAL', label: '総合AI', icon: '✨' },
-];
+import { DEPT_LABEL, DEPT_ACCENT, DEPARTMENTS } from '../constants/departments';
 
 interface InlineTask {
   id: string;           // バックエンドのタスクID
@@ -54,6 +41,7 @@ export default function ChatPage() {
     selectedAgentId, setSelectedAgent,
     streamingContent, setStreamingContent, appendStreamingContent,
     streamingDepartment, setStreamingDepartment,
+    autoCreateSession, setAutoCreateSession,
   } = useChatStore();
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -63,6 +51,7 @@ export default function ChatPage() {
   const [isListening, setIsListening] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<{ id: string; name: string; mimeType: string }[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [showTaskSidebar, setShowTaskSidebar] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastInputRef = useRef('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -73,7 +62,9 @@ export default function ChatPage() {
   // Load sessions
   useEffect(() => {
     api.get<{ success: boolean; data: ChatSession[] }>('/chat/sessions')
-      .then((res) => setSessions(res.data.data))
+      .then((res) => {
+        setSessions(res.data.data);
+      })
       .catch(() => null);
   }, [setSessions]);
 
@@ -87,25 +78,26 @@ export default function ChatPage() {
     }
   }, [id, currentSessionId, setCurrentSession, setMessages]);
 
-  // Handle pending department from dashboard
-  useEffect(() => {
-    if (pendingDepartment && id) {
-      setSelectedDept(pendingDepartment);
-      setPendingDepartment(null);
-    }
-  }, [pendingDepartment, id, setPendingDepartment]);
-
   // Handle selected agent from dashboard
   useEffect(() => {
     if (selectedAgentId) {
       // Map agent id to department
       const agentToDept: Record<string, string> = {
-        sales: 'SALES', marketing: 'MARKETING', accounting: 'ACCOUNTING',
-        analytics: 'GENERAL', general: 'GENERAL', secretary: 'GENERAL',
+        sales: 'SALES',
+        marketing: 'MARKETING',
+        accounting: 'ACCOUNTING',
+        analytics: 'ANALYTICS',
+        general: 'GENERAL',
+        assistant: 'GENERAL',
       };
       setSelectedDept(agentToDept[selectedAgentId] ?? 'GENERAL');
     }
   }, [selectedAgentId]);
+
+  // Auto-close left sidebar on narrow screens when right sidebar opens
+  useEffect(() => {
+    if (showTaskSidebar && window.innerWidth < 1280) setShowSidebar(false);
+  }, [showTaskSidebar]);
 
   // Auto scroll
   useEffect(() => {
@@ -122,12 +114,28 @@ export default function ChatPage() {
     }
   };
 
-  const createSession = async () => {
+  const createSession = useCallback(async () => {
     const res = await api.post<{ success: boolean; data: ChatSession }>('/chat/sessions', {});
     const session = res.data.data;
     setSessions([session, ...sessions]);
     navigate(`/chat/${session.id}`);
-  };
+  }, [sessions, setSessions, navigate]);
+
+  // Auto-create session when navigating from dashboard/BottomNav with autoCreateSession flag
+  useEffect(() => {
+    if (!id && autoCreateSession) {
+      setAutoCreateSession(false);
+      void createSession();
+    }
+  }, [id, autoCreateSession, setAutoCreateSession, createSession]);
+
+  // Once on a session, also apply pendingDepartment (fires after createSession navigation)
+  useEffect(() => {
+    if (pendingDepartment && id) {
+      setSelectedDept(pendingDepartment);
+      setPendingDepartment(null);
+    }
+  }, [pendingDepartment, id, setPendingDepartment]);
 
   const sendMessage = async () => {
     if (!input.trim() || sending || !id) return;
@@ -229,10 +237,11 @@ export default function ChatPage() {
 
       api.get<{ success: boolean; data: ChatSession[] }>('/chat/sessions')
         .then((r) => setSessions(r.data.data)).catch(() => null);
-    } catch {
+    } catch (e) {
       addMessage({
         id: `err-${Date.now()}`, sessionId: id, role: 'assistant',
-        content: 'エラーが発生しました。再試行してください。', department: null,
+        content: humanizeTaskManagerError(e),
+        department: null,
         createdAt: new Date().toISOString(),
       });
     } finally {
@@ -405,7 +414,7 @@ export default function ChatPage() {
         {showSidebar && (
           <motion.aside
             className="absolute lg:relative z-30 lg:z-0 w-64 h-full flex-shrink-0 flex flex-col border-r border-[#eae8e3]"
-            style={{ background: 'linear-gradient(180deg, #faf9f7 0%, #f5f4f0 100%)' }}
+            style={{ background: 'linear-gradient(180deg, #fffcf7 0%, #faf5ef 100%)' }}
             initial={{ x: -256 }}
             animate={{ x: 0 }}
             exit={{ x: -256 }}
@@ -414,7 +423,7 @@ export default function ChatPage() {
             <div className="p-4 flex items-center gap-2">
               <motion.button
                 onClick={createSession}
-                className="flex-1 flex items-center gap-2 bg-[#E8863A] hover:bg-[#d6762f] text-white text-xs font-semibold px-4 py-3 rounded-2xl transition-all shadow-md shadow-orange-200/50"
+                className="flex-1 flex items-center gap-2 bg-[#8b85ff] hover:bg-[#7c76f2] text-white text-xs font-semibold px-4 py-3 rounded-2xl transition-all shadow-md shadow-glow-primary"
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.99 }}
               >
@@ -434,7 +443,7 @@ export default function ChatPage() {
                 <button
                   onClick={() => { setSelectedDept(null); setSelectedAgent(null); }}
                   className={`text-[10px] px-2.5 py-1 rounded-full transition-all ${
-                    !selectedDept ? 'bg-[#E8863A] text-white font-semibold' : 'bg-white/60 text-[#8A8A8A] hover:bg-white'
+                    !selectedDept ? 'bg-[#8b85ff] text-white font-semibold' : 'bg-white/60 text-[#8A8A8A] hover:bg-white'
                   }`}
                 >
                   全部署
@@ -444,7 +453,7 @@ export default function ChatPage() {
                     key={d.key}
                     onClick={() => { setSelectedDept(d.key); setSelectedAgent(null); }}
                     className={`text-[10px] px-2.5 py-1 rounded-full transition-all ${
-                      selectedDept === d.key ? 'bg-[#E8863A] text-white font-semibold' : 'bg-white/60 text-[#8A8A8A] hover:bg-white'
+                      selectedDept === d.key ? 'bg-[#8b85ff] text-white font-semibold' : 'bg-white/60 text-[#8A8A8A] hover:bg-white'
                     }`}
                   >
                     {d.icon} {d.label}
@@ -477,7 +486,7 @@ export default function ChatPage() {
       </AnimatePresence>
 
       {/* Main chat area */}
-      <div className="flex-1 flex flex-col min-w-0" style={{ background: 'linear-gradient(180deg, #faf9f7 0%, #f5f4f0 100%)' }}>
+      <div className="flex-1 flex flex-col min-w-0" style={{ background: 'linear-gradient(180deg, #fffcf7 0%, #faf5ef 100%)' }}>
         {!id ? (
           /* Empty state - welcome screen */
           <div className="flex-1 flex items-center justify-center p-6">
@@ -487,18 +496,21 @@ export default function ChatPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4 }}
             >
-              <div className="w-16 h-16 bg-[#E8863A]/10 rounded-3xl flex items-center justify-center mx-auto mb-5">
-                <Sparkles size={28} className="text-[#E8863A]" />
+              <div className="w-16 h-16 bg-[#8b85ff]/10 rounded-3xl flex items-center justify-center mx-auto mb-5">
+                <Sparkles size={28} className="text-[#8b85ff]" />
               </div>
               <p className="text-xl font-bold text-[#2D2D2D] mb-2">AIエージェントに相談する</p>
-              <p className="text-sm text-[#8A8A8A] mb-8 leading-relaxed">
+              <p className="text-sm text-[#8A8A8A] mb-3 leading-relaxed">
                 各部署のAIエージェントが業務をサポートします。<br />
                 メール作成、リサーチ、データ分析、SNS投稿まで。
+              </p>
+              <p className="text-xs text-[#BCBCBC] mb-8 max-w-sm mx-auto">
+                ここは会話・相談向けです。長い成果物パイプラインはメニューの「タスク」からどうぞ。
               </p>
               <div className="flex gap-3 justify-center flex-wrap">
                 <motion.button
                   onClick={createSession}
-                  className="bg-[#E8863A] hover:bg-[#d6762f] text-white text-sm font-semibold px-6 py-3 rounded-2xl transition-all shadow-md shadow-orange-200/50 flex items-center gap-2"
+                  className="bg-[#8b85ff] hover:bg-[#7c76f2] text-white text-sm font-semibold px-6 py-3 rounded-2xl transition-all shadow-md shadow-glow-primary flex items-center gap-2"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
@@ -515,7 +527,7 @@ export default function ChatPage() {
                       setSelectedDept(d.key);
                       await createSession();
                     }}
-                    className="bg-white rounded-2xl p-4 text-left border border-[#eae8e3] hover:border-[#E8863A]/30 transition-all"
+                    className="bg-white rounded-2xl p-4 text-left border border-[#eae8e3] hover:border-[#8b85ff]/30 transition-all"
                     whileHover={{ scale: 1.02, y: -2 }}
                     whileTap={{ scale: 0.98 }}
                   >
@@ -557,28 +569,69 @@ export default function ChatPage() {
                   </>
                 )}
               </div>
-              <Link
-                to="/tasks"
-                className="text-xs text-[#8A8A8A] hover:text-[#E8863A] transition-colors font-medium"
-              >
-                タスク管理 →
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowTaskSidebar(!showTaskSidebar)}
+                  className="w-8 h-8 rounded-xl bg-[#f5f5f0] flex items-center justify-center text-[#8A8A8A] hover:text-[#8b85ff] transition-colors relative"
+                >
+                  <ClipboardList size={15} />
+                  {inlineTasks.filter((t) => t.status === 'executing').length > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-[#8b85ff] rounded-full text-[8px] text-white flex items-center justify-center font-bold">
+                      {inlineTasks.filter((t) => t.status === 'executing').length}
+                    </span>
+                  )}
+                </button>
+                <Link
+                  to="/tasks"
+                  className="text-xs text-[#8A8A8A] hover:text-[#8b85ff] transition-colors font-medium"
+                >
+                  全タスク →
+                </Link>
+              </div>
+            </div>
+
+            <div className="px-4 py-1.5 bg-[#fffcf7] border-b border-[#eae8e3] text-[10px] text-[#8A8A8A] text-center flex flex-wrap items-center justify-center gap-1">
+              <span>チャットは相談・下書き用です。</span>
+              <Link to="/tasks" className="text-[#8b85ff] font-medium hover:underline">
+                タスク管理
               </Link>
+              <span>でメールや資料などの成果物パイプラインを回せます</span>
             </div>
 
             {/* Messages area - Claude style vertical stack */}
             <div className="flex-1 overflow-y-auto scrollbar-hide">
               <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
                 {messages.length === 0 && !sending && (
-                  <div className="flex flex-col items-center justify-center py-20 text-center">
-                    <div className="w-12 h-12 bg-[#E8863A]/10 rounded-2xl flex items-center justify-center mb-3">
-                      <Bot size={20} className="text-[#E8863A]" />
+                  <div className="flex flex-col items-center justify-center py-12 text-center px-2">
+                    <div className="w-12 h-12 bg-[#8b85ff]/10 rounded-2xl flex items-center justify-center mb-3">
+                      <Bot size={20} className="text-[#8b85ff]" />
                     </div>
                     <p className="text-sm text-[#8A8A8A] mb-1">
                       {selectedDept
                         ? `${DEPT_LABEL[selectedDept]}AIに質問してください`
                         : '何でも聞いてください'}
                     </p>
-                    <p className="text-xs text-[#BCBCBC]">担当部署が自動で応答します</p>
+                    <p className="text-xs text-[#BCBCBC] mb-4">担当部署が自動で応答します</p>
+                    <p className="text-[10px] text-[#8A8A8A] mb-2 w-full max-w-md">例（タップで入力欄に挿入）</p>
+                    <div className="flex flex-col gap-2 w-full max-w-md">
+                      {[
+                        '今週の営業フォロー用に短いメールの下書きを作って',
+                        '競合A社と自社の強みを比較した箇条書きで',
+                        '経費精算の注意点を初心者向けに3行で',
+                      ].map((hint) => (
+                        <button
+                          key={hint}
+                          type="button"
+                          onClick={() => {
+                            setInput(hint);
+                            textareaRef.current?.focus();
+                          }}
+                          className="text-left text-xs px-3 py-2.5 rounded-xl bg-white border border-[#eae8e3] text-[#5C5C5C] hover:border-[#8b85ff]/35 transition-colors"
+                        >
+                          {hint}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -595,11 +648,11 @@ export default function ChatPage() {
                       <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${
                         msg.role === 'user'
                           ? 'bg-[#f5f5f0]'
-                          : 'bg-[#E8863A]/10'
+                          : 'bg-[#8b85ff]/10'
                       }`}>
                         {msg.role === 'user'
                           ? <UserIcon size={15} className="text-[#8A8A8A]" />
-                          : <Bot size={15} className="text-[#E8863A]" />
+                          : <Bot size={15} className="text-[#8b85ff]" />
                         }
                       </div>
 
@@ -658,8 +711,8 @@ export default function ChatPage() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                   >
-                    <div className="w-8 h-8 bg-[#E8863A]/10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <Bot size={15} className="text-[#E8863A]" />
+                    <div className="w-8 h-8 bg-[#8b85ff]/10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Bot size={15} className="text-[#8b85ff]" />
                     </div>
                     {streamingContent ? (
                       <div className="flex-1 min-w-0">
@@ -680,15 +733,15 @@ export default function ChatPage() {
                         <div className="text-sm leading-relaxed text-[#2D2D2D]">
                           <p className="whitespace-pre-wrap">
                             {stripJsonBlocks(streamingContent ?? '')}
-                            <span className="inline-block w-0.5 h-4 bg-[#E8863A] ml-0.5 animate-pulse align-middle" />
+                            <span className="inline-block w-0.5 h-4 bg-[#8b85ff] ml-0.5 animate-pulse align-middle" />
                           </p>
                         </div>
                       </div>
                     ) : (
                       <div className="flex items-center gap-1.5 pt-2">
-                        <div className="w-2 h-2 bg-[#E8863A] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <div className="w-2 h-2 bg-[#E8863A] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <div className="w-2 h-2 bg-[#E8863A] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                        <div className="w-2 h-2 bg-[#8b85ff] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <div className="w-2 h-2 bg-[#8b85ff] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <div className="w-2 h-2 bg-[#8b85ff] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                       </div>
                     )}
                   </motion.div>
@@ -708,7 +761,7 @@ export default function ChatPage() {
                 />
 
                 {/* Input container */}
-                <div className="bg-white rounded-3xl border border-[#eae8e3] shadow-sm px-4 py-3 focus-within:ring-2 focus-within:ring-[#E8863A]/20 focus-within:border-[#E8863A]/30 transition-all">
+                <div className="bg-white rounded-3xl border border-[#eae8e3] shadow-sm px-4 py-3 focus-within:ring-2 focus-within:ring-[#8b85ff]/20 focus-within:border-[#8b85ff]/30 transition-all">
                   {/* Attached files chips */}
                   {attachedFiles.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mb-2">
@@ -727,7 +780,17 @@ export default function ChatPage() {
                     ref={textareaRef}
                     value={input}
                     onChange={handleInputChange}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                        e.preventDefault();
+                        void sendMessage();
+                        return;
+                      }
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        void sendMessage();
+                      }
+                    }}
                     placeholder={selectedDept ? `${DEPT_LABEL[selectedDept]}AIに指示を入力...` : 'AIに何でも聞いてください...'}
                     className="w-full bg-transparent border-0 text-sm text-[#2D2D2D] placeholder-[#BCBCBC] resize-none focus:outline-none"
                     rows={1}
@@ -792,7 +855,7 @@ export default function ChatPage() {
                       <motion.button
                         onClick={sendMessage}
                         disabled={sending || !input.trim()}
-                        className="w-8 h-8 rounded-xl bg-[#E8863A] hover:bg-[#d6762f] disabled:opacity-30 text-white flex items-center justify-center transition-all"
+                        className="w-8 h-8 rounded-xl bg-[#8b85ff] hover:bg-[#7c76f2] disabled:opacity-30 text-white flex items-center justify-center transition-all"
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                       >
@@ -807,13 +870,20 @@ export default function ChatPage() {
                 </div>
 
                 <p className="text-[10px] text-[#BCBCBC] mt-2 text-center">
-                  Shift+Enter で改行 ・ AI応答は承認後に実行されます
+                  Enter または ⌘/Ctrl+Enter で送信 ・ Shift+Enter で改行 ・ タスク実行は承認後に進みます
                 </p>
               </div>
             </div>
           </>
         )}
       </div>
+
+      {/* Right task progress sidebar */}
+      <TaskProgressSidebar
+        open={showTaskSidebar}
+        onClose={() => setShowTaskSidebar(false)}
+        inlineTasks={inlineTasks}
+      />
     </div>
   );
 }

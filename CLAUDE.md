@@ -1,4 +1,4 @@
-# CLAUDE.md — AI組織基盤SaaS プロジェクト指示書
+# CLAUDE.md — FLOW - みんなのAIオフィス プロジェクト指示書
 
 ## プロジェクト概要
 

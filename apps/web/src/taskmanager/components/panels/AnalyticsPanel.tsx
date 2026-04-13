@@ -3,7 +3,7 @@ import { Copy, Check } from 'lucide-react';
 import { useState } from 'react';
 import type { AnalyticsResult } from '../../types';
 
-const COLORS = ['#E8863A', '#8B5CF6', '#0EA5E9', '#10B981', '#D97706', '#EC4899', '#6366F1', '#F59E0B'];
+const COLORS = ['#8b85ff', '#9a95ff', '#0EA5E9', '#10B981', '#b0acff', '#EC4899', '#6366F1', '#F59E0B'];
 
 interface AnalyticsPanelProps {
   result: AnalyticsResult;
@@ -49,7 +49,7 @@ export function AnalyticsPanel({ result }: AnalyticsPanelProps) {
               <Tooltip
                 contentStyle={{ borderRadius: '12px', border: '1px solid #eae8e3', fontSize: '12px' }}
               />
-              <Line type="monotone" dataKey={result.yKey} stroke="#E8863A" strokeWidth={2} dot={{ r: 4, fill: '#E8863A' }} />
+              <Line type="monotone" dataKey={result.yKey} stroke="#8b85ff" strokeWidth={2} dot={{ r: 4, fill: '#8b85ff' }} />
             </LineChart>
           </ResponsiveContainer>
         );
@@ -88,7 +88,7 @@ export function AnalyticsPanel({ result }: AnalyticsPanelProps) {
         </div>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1 text-xs text-[#8A8A8A] hover:text-[#E8863A] transition-colors px-2 py-1 rounded-lg hover:bg-[#f5f5f0]"
+          className="flex items-center gap-1 text-xs text-[#8A8A8A] hover:text-[#8b85ff] transition-colors px-2 py-1 rounded-lg hover:bg-[#f5f5f0]"
         >
           {copied ? <Check size={12} /> : <Copy size={12} />}
           {copied ? 'コピー済' : 'コピー'}

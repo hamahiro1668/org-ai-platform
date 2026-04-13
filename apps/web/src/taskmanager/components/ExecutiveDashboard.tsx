@@ -3,9 +3,9 @@ import TaskCard from './TaskCard';
 import type { Task } from '../types/index';
 
 const COLUMNS: { key: Task['status'][]; label: string; accent: string }[] = [
-  { key: ['pending'], label: '承認待ち', accent: '#E8863A' },
+  { key: ['pending'], label: '承認待ち', accent: '#8b85ff' },
   { key: ['ready', 'in_progress'], label: '実行可能', accent: '#0EA5E9' },
-  { key: ['blocked'], label: 'ブロック中', accent: '#D97706' },
+  { key: ['blocked'], label: 'ブロック中', accent: '#b0acff' },
 ];
 
 interface ExecutiveDashboardProps {
@@ -61,8 +61,9 @@ export default function ExecutiveDashboard({
               <div className="space-y-3 min-h-[80px]">
                 <AnimatePresence>
                   {colTasks.length === 0 ? (
-                    <div className="text-xs text-[#BCBCBC] text-center py-8 border border-dashed border-[#eae8e3] rounded-2xl">
-                      なし
+                    <div className="text-xs text-[#8A8A8A] text-center py-8 px-3 border border-dashed border-[#eae8e3] rounded-2xl leading-relaxed">
+                      <p className="text-[#BCBCBC] mb-1">まだタスクがありません</p>
+                      <p>右上の「新しいタスク」から追加するか、チャットから自動生成できます</p>
                     </div>
                   ) : (
                     colTasks.map((task) => (
@@ -105,7 +106,7 @@ export default function ExecutiveDashboard({
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
                 <span className="line-through flex-1 min-w-0 truncate">{task.title}</span>
                 {task.executionResult && (
-                  <span className="text-xs text-[#E8863A] flex-shrink-0 font-medium" style={{ textDecoration: 'none' }}>
+                  <span className="text-xs text-[#8b85ff] flex-shrink-0 font-medium" style={{ textDecoration: 'none' }}>
                     確認
                   </span>
                 )}

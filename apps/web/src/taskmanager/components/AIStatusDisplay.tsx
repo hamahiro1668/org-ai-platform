@@ -17,7 +17,7 @@ function StepIcon({ status }: { status: AgentStep['status'] }) {
         animate={{ rotate: 360 }}
         transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
       >
-        <Loader size={16} className="text-[#E8863A]" />
+        <Loader size={16} className="text-[#8b85ff]" />
       </motion.div>
     );
   }
@@ -27,13 +27,14 @@ function StepIcon({ status }: { status: AgentStep['status'] }) {
 interface AIStatusDisplayProps {
   steps: AgentStep[];
   error?: string | null;
+  onRetry?: () => void;
 }
 
-export default function AIStatusDisplay({ steps, error }: AIStatusDisplayProps) {
+export default function AIStatusDisplay({ steps, error, onRetry }: AIStatusDisplayProps) {
   return (
     <div className="bg-white border border-[#eae8e3] rounded-3xl p-5 shadow-sm">
       <div className="flex items-center gap-2 mb-4">
-        <div className="w-8 h-8 bg-[#E8863A]/10 rounded-xl flex items-center justify-center">
+        <div className="w-8 h-8 bg-[#8b85ff]/10 rounded-xl flex items-center justify-center">
           <span className="text-sm">🏢</span>
         </div>
         <span className="font-semibold text-[#2D2D2D] text-sm">組織が動いています...</span>
@@ -54,7 +55,7 @@ export default function AIStatusDisplay({ steps, error }: AIStatusDisplayProps) 
               <StepIcon status={step.status} />
               <div className="flex-1 min-w-0">
                 <span className={`font-medium ${
-                  step.status === 'running' ? 'text-[#E8863A]' :
+                  step.status === 'running' ? 'text-[#8b85ff]' :
                   step.status === 'done' ? 'text-[#2D2D2D]' :
                   step.status === 'error' ? 'text-red-500' :
                   'text-[#BCBCBC]'
@@ -72,7 +73,7 @@ export default function AIStatusDisplay({ steps, error }: AIStatusDisplayProps) 
                   {[0, 1, 2].map((d) => (
                     <motion.div
                       key={d}
-                      className="w-1 h-1 rounded-full bg-[#E8863A]"
+                      className="w-1 h-1 rounded-full bg-[#8b85ff]"
                       animate={{ y: [0, -3, 0] }}
                       transition={{ delay: d * 0.15, duration: 0.6, repeat: Infinity }}
                     />
@@ -88,9 +89,18 @@ export default function AIStatusDisplay({ steps, error }: AIStatusDisplayProps) 
         <motion.div
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600"
+          className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 space-y-2"
         >
-          {error}
+          <p className="whitespace-pre-line leading-relaxed">{error}</p>
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="w-full py-2 rounded-xl bg-white border border-red-200 text-red-700 font-semibold text-xs hover:bg-red-50 transition-colors"
+            >
+              再試行
+            </button>
+          )}
         </motion.div>
       )}
     </div>

@@ -6,6 +6,7 @@ import { MessageSquare, Zap, Clock, AlertTriangle, ClipboardList, ArrowRight } f
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
+import SetupChecklistBanner from '../components/SetupChecklistBanner';
 
 interface Stats {
   totalRequests: number;
@@ -16,10 +17,10 @@ interface Stats {
 }
 
 const DEPARTMENTS = [
-  { key: 'SALES', label: '営業部', desc: '提案書・メール・見積もり作成', icon: '🤝', color: '#E8863A' },
-  { key: 'MARKETING', label: 'マーケ部', desc: 'SNS投稿・広告・コピーライティング', icon: '📣', color: '#8B5CF6' },
-  { key: 'ACCOUNTING', label: '経理部', desc: '請求書・経費・予算・税務', icon: '📊', color: '#D97706' },
-  { key: 'GENERAL', label: '総合AI', desc: '何でも聞ける汎用アシスタント', icon: '✨', color: '#0EA5E9' },
+  { key: 'SALES', label: '営業部', desc: '提案書・メール・見積もり作成', icon: '🤝', color: '#8b85ff' },
+  { key: 'MARKETING', label: 'マーケ部', desc: 'SNS投稿・広告・コピーライティング', icon: '📣', color: '#9a95ff' },
+  { key: 'ACCOUNTING', label: '経理部', desc: '請求書・経費・予算・税務', icon: '📊', color: '#b0acff' },
+  { key: 'GENERAL', label: '総合AI', desc: '何でも聞ける汎用アシスタント', icon: '✨', color: '#8b85ff' },
 ];
 
 const DEPT_LABEL: Record<string, string> = {
@@ -65,6 +66,8 @@ export default function DashboardPage() {
         <p className="text-sm text-[#8A8A8A] mt-1">おはようございます、{user?.name} さん</p>
       </motion.div>
 
+      <SetupChecklistBanner />
+
       {/* Department selector */}
       <motion.div
         className="mb-8"
@@ -78,7 +81,7 @@ export default function DashboardPage() {
             <motion.button
               key={dept.key}
               onClick={() => handleDeptClick(dept.key)}
-              className="text-left p-5 rounded-3xl bg-white border border-[#eae8e3] hover:border-[#E8863A]/30 transition-all group shadow-sm"
+              className="text-left p-5 rounded-3xl bg-white border border-[#eae8e3] hover:border-[#8b85ff]/30 transition-all group shadow-sm"
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: 0.15 + i * 0.05 }}
@@ -93,7 +96,7 @@ export default function DashboardPage() {
                 {dept.label}
               </div>
               <p className="text-xs text-[#8A8A8A] leading-relaxed">{dept.desc}</p>
-              <div className="flex items-center gap-1 mt-3 text-xs text-[#BCBCBC] group-hover:text-[#E8863A] transition-colors">
+              <div className="flex items-center gap-1 mt-3 text-xs text-[#BCBCBC] group-hover:text-[#8b85ff] transition-colors">
                 チャット開始 <ArrowRight size={11} />
               </div>
             </motion.button>
@@ -115,18 +118,18 @@ export default function DashboardPage() {
           <motion.button
             key={path}
             onClick={() => navigate(path)}
-            className="flex items-center gap-3 bg-white border border-[#eae8e3] hover:border-[#E8863A]/30 rounded-3xl p-4 transition-all group shadow-sm"
+            className="flex items-center gap-3 bg-white border border-[#eae8e3] hover:border-[#8b85ff]/30 rounded-3xl p-4 transition-all group shadow-sm"
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.99 }}
           >
-            <div className="w-10 h-10 bg-[#E8863A]/10 rounded-2xl flex items-center justify-center flex-shrink-0">
-              <Icon size={17} className="text-[#E8863A]" />
+            <div className="w-10 h-10 bg-[#8b85ff]/10 rounded-2xl flex items-center justify-center flex-shrink-0">
+              <Icon size={17} className="text-[#8b85ff]" />
             </div>
             <div className="text-left min-w-0">
               <p className="text-sm font-bold text-[#2D2D2D]">{label}</p>
               <p className="text-xs text-[#8A8A8A] truncate">{desc}</p>
             </div>
-            <ArrowRight size={14} className="text-[#BCBCBC] group-hover:text-[#E8863A] ml-auto flex-shrink-0 transition-colors" />
+            <ArrowRight size={14} className="text-[#BCBCBC] group-hover:text-[#8b85ff] ml-auto flex-shrink-0 transition-colors" />
           </motion.button>
         ))}
       </motion.div>
@@ -148,10 +151,10 @@ export default function DashboardPage() {
             >
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 {[
-                  { label: 'AIリクエスト', value: data.totalRequests.toLocaleString(), icon: MessageSquare, color: '#E8863A' },
-                  { label: 'トークン消費', value: data.totalTokens.toLocaleString(), icon: Zap, color: '#8B5CF6' },
+                  { label: 'AIリクエスト', value: data.totalRequests.toLocaleString(), icon: MessageSquare, color: '#8b85ff' },
+                  { label: 'トークン消費', value: data.totalTokens.toLocaleString(), icon: Zap, color: '#9a95ff' },
                   { label: '平均応答', value: `${data.avgLatencyMs}ms`, icon: Clock, color: '#0EA5E9' },
-                  { label: 'リスクイベント', value: totalRisks, icon: AlertTriangle, color: '#D97706' },
+                  { label: 'リスクイベント', value: totalRisks, icon: AlertTriangle, color: '#b0acff' },
                 ].map(({ label, value, icon: Icon, color }) => (
                   <div key={label} className="bg-white rounded-3xl p-5 border border-[#eae8e3] shadow-sm">
                     <div
@@ -178,7 +181,7 @@ export default function DashboardPage() {
                           contentStyle={{ background: '#fff', border: '1px solid #eae8e3', borderRadius: 16, fontSize: 12, color: '#2D2D2D' }}
                           cursor={{ fill: '#faf9f7' }}
                         />
-                        <Bar dataKey="count" fill="#E8863A" radius={[8, 8, 0, 0]} />
+                        <Bar dataKey="count" fill="#8b85ff" radius={[8, 8, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>

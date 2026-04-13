@@ -1,6 +1,7 @@
 {
   "name": "org-ai-platform",
   "private": true,
+  "packageManager": "npm@10.9.2",
   "workspaces": ["apps/web", "apps/api-gateway", "packages/*"],
   "scripts": {
     "dev": "concurrently \"npm run dev --workspace=apps/api-gateway\" \"npm run dev --workspace=apps/web\"",

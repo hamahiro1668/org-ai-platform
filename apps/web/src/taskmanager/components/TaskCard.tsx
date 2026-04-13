@@ -16,9 +16,9 @@ const TYPE_ICON: Record<Task['type'], React.ReactNode> = {
 const TYPE_ACCENT: Record<Task['type'], string> = {
   email: '#0EA5E9',
   coding: '#10B981',
-  research: '#8B5CF6',
-  document: '#E8863A',
-  schedule: '#D97706',
+  research: '#9a95ff',
+  document: '#8b85ff',
+  schedule: '#b0acff',
   analytics: '#6366F1',
   sns: '#EC4899',
 };
@@ -41,7 +41,7 @@ function deadlineLabel(deadline?: string): { text: string; cls: string } | null 
   if (!deadline) return null;
   const diff = Math.ceil((new Date(deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
   if (diff < 0) return { text: '期限超過', cls: 'text-red-500 font-semibold' };
-  if (diff === 0) return { text: '今日まで', cls: 'text-[#E8863A] font-semibold' };
+  if (diff === 0) return { text: '今日まで', cls: 'text-[#8b85ff] font-semibold' };
   return { text: `${diff}日後`, cls: 'text-[#8A8A8A]' };
 }
 
@@ -76,11 +76,11 @@ export default function TaskCard({ task, onExecute, isExecuting, onApprove, onRe
       whileHover={{ y: -2 }}
       transition={{ duration: 0.2 }}
     >
-      <div className={`bg-white border border-[#eae8e3] rounded-2xl p-4 flex flex-col gap-3 transition-all hover:shadow-md hover:border-[#E8863A]/20 ${isPending ? 'border-l-4 border-l-[#E8863A]' : ''}`}>
+      <div className={`bg-white border border-[#eae8e3] rounded-2xl p-4 flex flex-col gap-3 transition-all hover:shadow-md hover:border-[#8b85ff]/20 ${isPending ? 'border-l-4 border-l-[#8b85ff]' : ''}`}>
         {/* Pending badge */}
         {isPending && task.projectId && DEPT_LABEL[task.projectId] && (
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-[#E8863A] font-semibold bg-[#E8863A]/10 px-2 py-0.5 rounded-full">承認待ち</span>
+            <span className="text-[10px] text-[#8b85ff] font-semibold bg-[#8b85ff]/10 px-2 py-0.5 rounded-full">承認待ち</span>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#f5f5f0] text-[#8A8A8A] font-medium">
               {DEPT_LABEL[task.projectId]}
             </span>
@@ -103,7 +103,7 @@ export default function TaskCard({ task, onExecute, isExecuting, onApprove, onRe
                 onChange={(e) => setEditTitle(e.target.value)}
                 onBlur={handleEditSave}
                 onKeyDown={(e) => e.key === 'Enter' && handleEditSave()}
-                className="text-sm font-semibold text-[#2D2D2D] border-b border-[#E8863A] bg-transparent outline-none w-full"
+                className="text-sm font-semibold text-[#2D2D2D] border-b border-[#8b85ff] bg-transparent outline-none w-full"
               />
             ) : (
               <span className="text-sm font-semibold text-[#2D2D2D] leading-tight line-clamp-2">
@@ -130,7 +130,7 @@ export default function TaskCard({ task, onExecute, isExecuting, onApprove, onRe
         {isPending ? (
           <div className="flex gap-2">
             <motion.button
-              className="flex-1 flex items-center justify-center gap-1.5 bg-[#E8863A] hover:bg-[#d6762f] text-white text-xs font-semibold py-2 px-3 rounded-xl transition-all shadow-sm shadow-orange-200/50"
+              className="flex-1 flex items-center justify-center gap-1.5 bg-[#8b85ff] hover:bg-[#7c76f2] text-white text-xs font-semibold py-2 px-3 rounded-xl transition-all shadow-sm shadow-glow-primary"
               onClick={() => onApprove?.(task)}
               whileTap={{ scale: 0.97 }}
             >
@@ -153,7 +153,7 @@ export default function TaskCard({ task, onExecute, isExecuting, onApprove, onRe
           </div>
         ) : (
           <motion.button
-            className="bg-[#E8863A] hover:bg-[#d6762f] text-white rounded-xl py-2 px-4 text-xs font-semibold w-full flex items-center justify-center gap-1.5 transition-all shadow-sm shadow-orange-200/50 disabled:opacity-40"
+            className="bg-[#8b85ff] hover:bg-[#7c76f2] text-white rounded-xl py-2 px-4 text-xs font-semibold w-full flex items-center justify-center gap-1.5 transition-all shadow-sm shadow-glow-primary disabled:opacity-40"
             onClick={() => onExecute(task)}
             disabled={isExecuting}
             whileTap={{ scale: 0.97 }}

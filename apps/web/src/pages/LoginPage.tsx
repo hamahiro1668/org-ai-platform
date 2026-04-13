@@ -44,7 +44,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="flex flex-col items-center mb-10">
           <motion.div
-            className="w-14 h-14 bg-[#E8863A] rounded-2xl flex items-center justify-center shadow-lg shadow-orange-200 mb-4"
+            className="w-14 h-14 bg-[#8b85ff] rounded-2xl flex items-center justify-center shadow-lg shadow-glow-primary mb-4"
             whileHover={{ rotate: 12, scale: 1.05 }}
           >
             <Sparkles size={24} className="text-white" />
@@ -74,7 +74,7 @@ export default function LoginPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-[#f5f5f0] border-0 rounded-xl px-4 py-3 text-sm text-[#2D2D2D] placeholder-[#BCBCBC] focus:outline-none focus:ring-2 focus:ring-[#E8863A]/30 transition-all"
+                className="w-full bg-[#f5f5f0] border-0 rounded-xl px-4 py-3 text-sm text-[#2D2D2D] placeholder-[#BCBCBC] focus:outline-none focus:ring-2 focus:ring-[#8b85ff]/30 transition-all"
                 placeholder="you@example.com"
                 required
               />
@@ -85,7 +85,7 @@ export default function LoginPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-[#f5f5f0] border-0 rounded-xl px-4 py-3 text-sm text-[#2D2D2D] placeholder-[#BCBCBC] focus:outline-none focus:ring-2 focus:ring-[#E8863A]/30 transition-all"
+                className="w-full bg-[#f5f5f0] border-0 rounded-xl px-4 py-3 text-sm text-[#2D2D2D] placeholder-[#BCBCBC] focus:outline-none focus:ring-2 focus:ring-[#8b85ff]/30 transition-all"
                 placeholder="••••••••"
                 required
               />
@@ -93,7 +93,7 @@ export default function LoginPage() {
             <motion.button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#E8863A] hover:bg-[#d6762f] disabled:opacity-50 text-white font-semibold py-3 px-4 rounded-xl text-sm transition-all shadow-md shadow-orange-200 flex items-center justify-center gap-2"
+              className="w-full bg-[#8b85ff] hover:bg-[#7c76f2] disabled:opacity-50 text-white font-semibold py-3 px-4 rounded-xl text-sm transition-all shadow-md shadow-glow-primary flex items-center justify-center gap-2"
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
             >
@@ -104,7 +104,7 @@ export default function LoginPage() {
           <div className="mt-6 pt-5 border-t border-gray-100 text-center">
             <p className="text-xs text-[#BCBCBC]">
               アカウントをお持ちでない方は{' '}
-              <Link to="/register" className="text-[#E8863A] font-semibold hover:underline">新規登録</Link>
+              <Link to="/register" className="text-[#8b85ff] font-semibold hover:underline">新規登録</Link>
             </p>
           </div>
         </div>

@@ -11,7 +11,7 @@ function CopyButton({ text, label = 'コピー' }: { text: string; label?: strin
     setTimeout(() => setCopied(false), 2000);
   };
   return (
-    <button onClick={handle} className="flex items-center gap-1 text-xs text-[#8A8A8A] hover:text-[#E8863A] transition-colors px-2 py-1 rounded-lg hover:bg-[#E8863A]/5">
+    <button onClick={handle} className="flex items-center gap-1 text-xs text-[#8A8A8A] hover:text-[#8b85ff] transition-colors px-2 py-1 rounded-lg hover:bg-[#8b85ff]/5">
       {copied ? <Check size={12} /> : <Copy size={12} />}
       {copied ? 'コピー済み' : label}
     </button>
@@ -44,7 +44,7 @@ export default function CodingPanel({ coding, onApprove }: CodingPanelProps) {
                 key={i}
                 onClick={() => setActiveTab(i)}
                 className={`text-xs px-3 py-1.5 rounded-xl font-mono transition-all ${
-                  activeTab === i ? 'bg-[#E8863A] text-white' : 'bg-[#f5f5f0] text-[#8A8A8A] hover:bg-[#eae8e3]'
+                  activeTab === i ? 'bg-[#8b85ff] text-white' : 'bg-[#f5f5f0] text-[#8A8A8A] hover:bg-[#eae8e3]'
                 }`}
               >
                 {file.filename}
@@ -90,7 +90,7 @@ export default function CodingPanel({ coding, onApprove }: CodingPanelProps) {
         )}
 
         <button
-          className="bg-[#E8863A] hover:bg-[#d6762f] text-white rounded-xl py-2 px-5 text-sm font-semibold w-full flex items-center justify-center gap-1.5 shadow-sm shadow-orange-200/50 transition-all"
+          className="bg-[#8b85ff] hover:bg-[#7c76f2] text-white rounded-xl py-2 px-5 text-sm font-semibold w-full flex items-center justify-center gap-1.5 shadow-sm shadow-glow-primary transition-all"
           onClick={onApprove}
         >
           <CheckCheck size={14} /> 承認・完了

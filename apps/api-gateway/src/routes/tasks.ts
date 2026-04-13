@@ -96,15 +96,16 @@ async function executeTaskViaAiEngine(task: { id: string; orgId: string; title: 
       body: JSON.stringify({
         message: task.input,
         org_id: task.orgId,
+        session_id: task.id,
         department: task.department,
         plan: 'STARTER',
       }),
     });
     if (!res.ok) throw new Error(`AI Engine returned ${res.status}`);
-    const result = await res.json() as { response: string; department: string };
+    const result = await res.json() as { content: string; department: string };
     await prisma.task.update({
       where: { id: task.id },
-      data: { status: 'DONE', output: result.response, executedAt: new Date() },
+      data: { status: 'DONE', output: result.content, executedAt: new Date() },
     });
     await prisma.taskLog.create({
       data: { taskId: task.id, message: 'AI Engineで実行完了', level: 'INFO' },

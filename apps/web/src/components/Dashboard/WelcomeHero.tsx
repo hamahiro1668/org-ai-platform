@@ -65,7 +65,7 @@ export function WelcomeHero() {
           transition={{ delay: 0.3, duration: 0.4 }}
         >
           <div className="flex flex-col items-center gap-1 bg-white/60 rounded-2xl px-4 py-3 min-w-[80px]">
-            <Activity size={16} className="text-[#E8863A]" />
+            <Activity size={16} className="text-[#8b85ff]" />
             <span className="text-lg font-bold text-[#2D2D2D]">
               <AnimatedCounter target={totalTasks} />
             </span>
@@ -79,7 +79,7 @@ export function WelcomeHero() {
             <span className="text-[10px] text-[#8A8A8A]">稼働中</span>
           </div>
           <div className="flex flex-col items-center gap-1 bg-white/60 rounded-2xl px-4 py-3 min-w-[80px]">
-            <CheckCircle size={16} className="text-blue-500" />
+            <CheckCircle size={16} className="text-[#8b85ff]" />
             <span className="text-lg font-bold text-[#2D2D2D]">
               <AnimatedCounter target={completedTasks} />
             </span>

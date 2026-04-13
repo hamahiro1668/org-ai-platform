@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from app.models.llm import OrchestateRequest, OrchestrateResponse, LLMRequest, LLMResponse, ChatMessage
@@ -34,19 +34,31 @@ async def health() -> dict:
 
 @app.post("/orchestrate", response_model=OrchestrateResponse)
 async def orchestrate(request: OrchestateRequest) -> OrchestrateResponse:
-    return await orchestrator.process(
-        user_message=request.message,
-        org_id=request.org_id,
-        plan=request.plan,
-        department=request.department,
-    )
+    try:
+        return await orchestrator.process(
+            user_message=request.message,
+            org_id=request.org_id,
+            plan=request.plan,
+            department=request.department,
+        )
+    except RuntimeError as e:
+        msg = str(e)
+        if "GROQ_API_KEY" in msg:
+            raise HTTPException(status_code=503, detail=msg) from e
+        raise
 
 
 @app.post("/orchestrate/stream")
 async def orchestrate_stream(request: OrchestateRequest) -> StreamingResponse:
     """SSE ストリーミングエンドポイント。トークンを1つずつ返す。"""
     # 部署を解決
-    if request.department and request.department in ("SALES", "MARKETING", "ACCOUNTING", "GENERAL"):
+    if request.department and request.department in (
+        "SALES",
+        "MARKETING",
+        "ACCOUNTING",
+        "ANALYTICS",
+        "GENERAL",
+    ):
         resolved_dept = request.department
     else:
         resolved_dept = await classify_intent(request.message)
@@ -117,5 +129,6 @@ async def llm_chat(request: LLMRequest) -> LLMResponse:
         department=request.department,
         org_id=request.org_id,
         plan=request.plan,
+        json_mode=request.json_mode,
     )
     return response

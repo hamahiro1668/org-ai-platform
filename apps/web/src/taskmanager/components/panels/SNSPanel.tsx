@@ -67,7 +67,7 @@ export function SNSPanel({ result, onPost }: SNSPanelProps) {
         {result.hashtags.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-3">
             {result.hashtags.map((tag) => (
-              <span key={tag} className="text-xs text-[#E8863A] font-medium">#{tag}</span>
+              <span key={tag} className="text-xs text-[#8b85ff] font-medium">#{tag}</span>
             ))}
           </div>
         )}

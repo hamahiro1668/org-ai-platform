@@ -1,19 +1,16 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TopBar } from './Navigation/TopBar';
 import { BottomNav } from './Navigation/BottomNav';
+import { AmbientBackground } from './ui/AmbientBackground';
 
 export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
 
   return (
-    <div
-      className="flex flex-col h-screen overflow-hidden"
-      style={{ background: 'linear-gradient(180deg, #f5f5f0 0%, #eae8e3 100%)' }}
-    >
-      <TopBar showBack onBack={() => navigate(-1)} />
-      <main className="flex-1 overflow-auto">
+    <div className="flex flex-col h-screen overflow-hidden relative">
+      <AmbientBackground />
+      <main className="flex-1 overflow-auto relative z-0">
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}
@@ -21,13 +18,13 @@ export default function Layout() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.25, ease: [0.2, 0, 0, 1] }}
           >
             <Outlet />
           </motion.div>
         </AnimatePresence>
       </main>
-      <BottomNav />
+      <BottomNav showBack onBack={() => navigate(-1)} />
     </div>
   );
 }

@@ -13,7 +13,7 @@ export default function SchedulePanel({ schedule, onApprove }: SchedulePanelProp
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
       <div className="bg-white border border-[#eae8e3] rounded-3xl p-5 space-y-4 shadow-sm">
         <div className="flex items-center gap-2 border-b border-[#eae8e3] pb-3">
-          <div className="w-8 h-8 bg-[#D97706]/10 rounded-xl flex items-center justify-center"><span className="text-sm">📅</span></div>
+          <div className="w-8 h-8 bg-[#b0acff]/10 rounded-xl flex items-center justify-center"><span className="text-sm">📅</span></div>
           <h3 className="font-bold text-[#2D2D2D] text-sm">スケジュール成果物</h3>
         </div>
 
@@ -25,15 +25,15 @@ export default function SchedulePanel({ schedule, onApprove }: SchedulePanelProp
               key={i}
               className={`flex gap-3 items-start p-2.5 rounded-2xl text-xs transition-colors ${
                 item.milestone
-                  ? 'bg-[#E8863A]/5 border border-[#E8863A]/20'
+                  ? 'bg-[#8b85ff]/5 border border-[#8b85ff]/20'
                   : 'bg-[#f5f5f0] border border-[#eae8e3]'
               }`}
             >
               <div className="flex-shrink-0 mt-0.5">
-                {item.milestone ? <Flag size={12} className="text-[#E8863A]" /> : <div className="w-3 h-3 rounded-full border-2 border-[#BCBCBC]" />}
+                {item.milestone ? <Flag size={12} className="text-[#8b85ff]" /> : <div className="w-3 h-3 rounded-full border-2 border-[#BCBCBC]" />}
               </div>
               <div className="w-28 flex-shrink-0">
-                <span className={`font-mono ${item.milestone ? 'text-[#E8863A] font-bold' : 'text-[#8A8A8A]'}`}>{item.date}</span>
+                <span className={`font-mono ${item.milestone ? 'text-[#8b85ff] font-bold' : 'text-[#8A8A8A]'}`}>{item.date}</span>
               </div>
               <div className="flex-1 min-w-0">
                 <p className={`leading-snug ${item.milestone ? 'font-semibold text-[#2D2D2D]' : 'text-[#2D2D2D]'}`}>{item.task}</p>
@@ -66,13 +66,13 @@ export default function SchedulePanel({ schedule, onApprove }: SchedulePanelProp
 
         <div className="flex gap-2">
           <button
-            className="flex-1 border border-[#E8863A]/30 text-[#E8863A] hover:bg-[#E8863A]/5 rounded-xl py-2 px-4 text-sm font-semibold flex items-center justify-center gap-1.5 transition-colors"
+            className="flex-1 border border-[#8b85ff]/30 text-[#8b85ff] hover:bg-[#8b85ff]/5 rounded-xl py-2 px-4 text-sm font-semibold flex items-center justify-center gap-1.5 transition-colors"
             onClick={() => downloadICS(schedule, `${schedule.title}.ics`)}
           >
             <CalendarPlus size={14} /> カレンダーに追加
           </button>
           <button
-            className="flex-1 bg-[#E8863A] hover:bg-[#d6762f] text-white rounded-xl py-2 px-4 text-sm font-semibold flex items-center justify-center gap-1.5 shadow-sm shadow-orange-200/50 transition-all"
+            className="flex-1 bg-[#8b85ff] hover:bg-[#7c76f2] text-white rounded-xl py-2 px-4 text-sm font-semibold flex items-center justify-center gap-1.5 shadow-sm shadow-glow-primary transition-all"
             onClick={onApprove}
           >
             <CheckCheck size={14} /> 承認・完了

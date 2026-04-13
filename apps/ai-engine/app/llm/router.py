@@ -37,6 +37,7 @@ class LLMRouter:
         department: str,
         org_id: str,
         plan: str = "STARTER",
+        json_mode: bool = False,
     ) -> Tuple[LLMResponse, bool, List[str]]:
         pii_detected = False
         pii_types: List[str] = []
@@ -61,7 +62,7 @@ class LLMRouter:
                 logger.info(f"[LLMRouter] plan=MAX -> Anthropic ({response.model})")
             except Exception as e:
                 logger.warning(f"[LLMRouter] Anthropic failed, falling back to Groq: {e}")
-                response = await _groq.chat(screened_messages)
+                response = await _groq.chat(screened_messages, json_mode=json_mode)
         elif plan == "PRO":
             try:
                 provider = _get_openai()
@@ -69,9 +70,9 @@ class LLMRouter:
                 logger.info(f"[LLMRouter] plan=PRO -> OpenAI ({response.model})")
             except Exception as e:
                 logger.warning(f"[LLMRouter] OpenAI failed, falling back to Groq: {e}")
-                response = await _groq.chat(screened_messages)
+                response = await _groq.chat(screened_messages, json_mode=json_mode)
         else:
-            response = await _groq.chat(screened_messages)
+            response = await _groq.chat(screened_messages, json_mode=json_mode)
             logger.info(f"[LLMRouter] plan=STARTER -> Groq ({response.model})")
 
         response.pii_detected = pii_detected

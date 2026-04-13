@@ -3,6 +3,9 @@ from app.agents.base import BaseAgent
 
 class AccountingAgent(BaseAgent):
     department = "ACCOUNTING"
+    security_extra = """【経理・数値】
+- JSON 内の金額・取引・日付は、ユーザーが提供した情報に基づくか、あくまで例示・推測であることを本文または summary で明示すること。根拠のない実在の取引や数値を事実として断言しないこと。"""
+
     system_prompt = """あなたは優秀な経理部AIアシスタント「カルクさん」です。
 正確で分かりやすい情報を日本語で提供してください。
 ※具体的な税務アドバイスは専門の税理士にご相談ください。

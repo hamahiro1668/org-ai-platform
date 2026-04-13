@@ -1,0 +1,61 @@
+import { readFile } from 'fs/promises';
+
+const MAX_EXTRACT_CHARS = 20000;
+
+// 任意インストール依存を型エラーなく動的 import するためのヘルパー
+// (pdf-parse / mammoth は optional dependency で、未インストールでもビルドできるようにする)
+const optionalImport = (name: string): Promise<any> =>
+  (new Function('m', 'return import(m)')(name) as Promise<any>).catch(() => null);
+
+export interface ExtractResult {
+  text: string;
+  truncated: boolean;
+  extractor: 'text' | 'pdf' | 'docx' | 'unsupported';
+}
+
+export async function extractText(storagePath: string, mimeType: string): Promise<ExtractResult> {
+  if (mimeType === 'text/plain' || mimeType === 'text/csv') {
+    const buf = await readFile(storagePath);
+    const text = buf.toString('utf-8');
+    return trim(text, 'text');
+  }
+
+  if (mimeType === 'application/pdf') {
+    try {
+      const mod = await optionalImport('pdf-parse');
+      if (!mod) return unsupported('pdf-parse がインストールされていません (npm i pdf-parse)');
+      const parser = mod.default ?? mod;
+      const buf = await readFile(storagePath);
+      const out = await parser(buf);
+      return trim(String(out.text ?? ''), 'pdf');
+    } catch (e) {
+      return unsupported(`PDF抽出に失敗しました: ${(e as Error).message}`);
+    }
+  }
+
+  if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+    try {
+      const mod = await optionalImport('mammoth');
+      if (!mod) return unsupported('mammoth がインストールされていません (npm i mammoth)');
+      const out = await mod.extractRawText({ path: storagePath });
+      return trim(String(out.value ?? ''), 'docx');
+    } catch (e) {
+      return unsupported(`DOCX抽出に失敗しました: ${(e as Error).message}`);
+    }
+  }
+
+  return unsupported(`このMIMEタイプ(${mimeType})からのテキスト抽出は未対応です`);
+}
+
+function trim(text: string, extractor: ExtractResult['extractor']): ExtractResult {
+  const truncated = text.length > MAX_EXTRACT_CHARS;
+  return {
+    text: truncated ? text.slice(0, MAX_EXTRACT_CHARS) : text,
+    truncated,
+    extractor,
+  };
+}
+
+function unsupported(message: string): ExtractResult {
+  return { text: message, truncated: false, extractor: 'unsupported' };
+}

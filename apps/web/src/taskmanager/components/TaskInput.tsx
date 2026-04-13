@@ -5,6 +5,13 @@ import type { Task, SubTask } from '../types/index';
 import { analyzeTask, isComplexResult } from '../ai/executor';
 import type { DecomposedTaskSpec } from '../ai/executor';
 import { useStore } from '../store/index';
+import { humanizeTaskManagerError } from '../../utils/humanizeLlmError';
+
+const EXAMPLE_PROMPTS = [
+  '来週の顧客打ち合わせ用に提案書の骨子とメール案を作りたい',
+  'Instagram用に新商品の短い投稿文案を3パターン',
+  '今月の経費をカテゴリ別に整理した表形式のメモが欲しい',
+];
 
 interface TaskInputProps {
   onAdd: (task: Task) => void;
@@ -23,8 +30,8 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const TYPE_ACCENT: Record<string, string> = {
-  email: '#0EA5E9', coding: '#10B981', research: '#8B5CF6',
-  document: '#E8863A', schedule: '#D97706', analytics: '#6366F1', sns: '#EC4899',
+  email: '#0EA5E9', coding: '#10B981', research: '#9a95ff',
+  document: '#8b85ff', schedule: '#b0acff', analytics: '#6366F1', sns: '#EC4899',
 };
 
 const PRIORITY_STYLE: Record<string, { bg: string; text: string }> = {
@@ -71,7 +78,7 @@ export default function TaskInput({ onAdd, onClose }: TaskInputProps) {
         onClose();
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'エラーが発生しました');
+      setError(humanizeTaskManagerError(e));
     } finally {
       setLoading(false);
     }
@@ -95,7 +102,7 @@ export default function TaskInput({ onAdd, onClose }: TaskInputProps) {
       startQueue(taskIds);
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'エラーが発生しました');
+      setError(humanizeTaskManagerError(e));
     } finally {
       setLoading(false);
     }
@@ -141,8 +148,8 @@ export default function TaskInput({ onAdd, onClose }: TaskInputProps) {
                     <ChevronLeft size={18} />
                   </button>
                 )}
-                <div className="w-8 h-8 bg-[#E8863A]/10 rounded-xl flex items-center justify-center">
-                  <Sparkles size={14} className="text-[#E8863A]" />
+                <div className="w-8 h-8 bg-[#8b85ff]/10 rounded-xl flex items-center justify-center">
+                  <Sparkles size={14} className="text-[#8b85ff]" />
                 </div>
                 <h2 className="font-bold text-[#2D2D2D]">
                   {phase === 'input' ? '新規タスク' : 'タスク分解プレビュー'}
@@ -163,9 +170,22 @@ export default function TaskInput({ onAdd, onClose }: TaskInputProps) {
                   <p className="text-xs text-[#8A8A8A] mb-2">
                     自然言語で入力してください。AIが種別・優先度・期限を解析し、複合タスクは自動分解します。
                   </p>
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {EXAMPLE_PROMPTS.map((ex) => (
+                      <button
+                        key={ex}
+                        type="button"
+                        disabled={loading}
+                        onClick={() => { setText(ex); setError(null); }}
+                        className="text-[10px] px-2.5 py-1 rounded-full bg-white border border-[#eae8e3] text-[#8A8A8A] hover:border-[#8b85ff]/40 hover:text-[#2D2D2D] transition-colors text-left max-w-full line-clamp-2"
+                      >
+                        {ex}
+                      </button>
+                    ))}
+                  </div>
                   <textarea
                     autoFocus
-                    className="w-full text-sm bg-[#f5f5f0] border border-[#eae8e3] rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#E8863A]/30 text-[#2D2D2D] resize-none min-h-[120px] placeholder-[#BCBCBC]"
+                    className="w-full text-sm bg-[#f5f5f0] border border-[#eae8e3] rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#8b85ff]/30 text-[#2D2D2D] resize-none min-h-[120px] placeholder-[#BCBCBC]"
                     placeholder={'例：来月ウェビナーを開催したい。告知メール・スケジュール・資料の3点を準備して\n例：Aさんに提案書を来週月曜までに送る'}
                     value={text}
                     onChange={(e) => setText(e.target.value)}
@@ -179,7 +199,7 @@ export default function TaskInput({ onAdd, onClose }: TaskInputProps) {
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="flex items-center gap-2 text-sm text-[#E8863A]"
+                    className="flex items-center gap-2 text-sm text-[#8b85ff]"
                   >
                     <motion.div
                       animate={{ rotate: 360 }}
@@ -206,7 +226,7 @@ export default function TaskInput({ onAdd, onClose }: TaskInputProps) {
                     キャンセル
                   </button>
                   <motion.button
-                    className="bg-[#E8863A] hover:bg-[#d6762f] text-white rounded-2xl px-5 py-2 text-sm font-semibold flex items-center gap-1.5 disabled:opacity-50 shadow-sm shadow-orange-200/50 transition-all"
+                    className="bg-[#8b85ff] hover:bg-[#7c76f2] text-white rounded-2xl px-5 py-2 text-sm font-semibold flex items-center gap-1.5 disabled:opacity-50 shadow-sm shadow-glow-primary transition-all"
                     onClick={handleAnalyze}
                     disabled={loading || !text.trim()}
                     whileTap={{ scale: 0.97 }}
@@ -222,9 +242,9 @@ export default function TaskInput({ onAdd, onClose }: TaskInputProps) {
             {phase === 'preview' && (
               <>
                 {projectName && (
-                  <div className="bg-[#E8863A]/5 border border-[#E8863A]/20 rounded-2xl px-4 py-2.5">
+                  <div className="bg-[#8b85ff]/5 border border-[#8b85ff]/20 rounded-2xl px-4 py-2.5">
                     <p className="text-[10px] text-[#8A8A8A]">プロジェクト</p>
-                    <p className="text-sm font-bold text-[#E8863A]">{projectName}</p>
+                    <p className="text-sm font-bold text-[#8b85ff]">{projectName}</p>
                   </div>
                 )}
 
@@ -285,7 +305,7 @@ export default function TaskInput({ onAdd, onClose }: TaskInputProps) {
                     戻る
                   </button>
                   <motion.button
-                    className="bg-[#E8863A] hover:bg-[#d6762f] text-white rounded-2xl px-5 py-2 text-sm font-semibold flex items-center gap-1.5 disabled:opacity-50 shadow-sm shadow-orange-200/50 transition-all"
+                    className="bg-[#8b85ff] hover:bg-[#7c76f2] text-white rounded-2xl px-5 py-2 text-sm font-semibold flex items-center gap-1.5 disabled:opacity-50 shadow-sm shadow-glow-primary transition-all"
                     onClick={handleAutoRun}
                     disabled={loading}
                     whileTap={{ scale: 0.97 }}

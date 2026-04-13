@@ -10,6 +10,7 @@ import { fileRoutes } from './routes/files';
 import { taskRoutes } from './routes/tasks';
 import { webhookRoutes } from './routes/webhooks';
 import { agentRoutes } from './routes/agents';
+import { llmRoutes } from './routes/llm';
 
 const app = Fastify({ logger: true });
 
@@ -40,6 +41,7 @@ async function start(): Promise<void> {
   await app.register(taskRoutes, { prefix: '/api/tasks' });
   await app.register(webhookRoutes, { prefix: '/api/webhooks' });
   await app.register(agentRoutes, { prefix: '/api/agents' });
+  await app.register(llmRoutes, { prefix: '/api/llm' });
 
   const port = parseInt(process.env.PORT ?? '4000');
   await app.listen({ port, host: '0.0.0.0' });

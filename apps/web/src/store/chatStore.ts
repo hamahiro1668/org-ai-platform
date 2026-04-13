@@ -9,6 +9,7 @@ interface ChatState {
   selectedAgentId: string | null;
   streamingContent: string | null;
   streamingDepartment: string | null;
+  autoCreateSession: boolean;
   setSessions: (sessions: ChatSession[]) => void;
   setCurrentSession: (id: string | null) => void;
   setMessages: (messages: Message[]) => void;
@@ -18,6 +19,7 @@ interface ChatState {
   setStreamingContent: (content: string | null) => void;
   appendStreamingContent: (token: string) => void;
   setStreamingDepartment: (dept: string | null) => void;
+  setAutoCreateSession: (val: boolean) => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -28,6 +30,7 @@ export const useChatStore = create<ChatState>((set) => ({
   selectedAgentId: null,
   streamingContent: null,
   streamingDepartment: null,
+  autoCreateSession: false,
   setSessions: (sessions) => set({ sessions }),
   setCurrentSession: (id) => set({ currentSessionId: id, messages: [] }),
   setMessages: (messages) => set({ messages }),
@@ -39,4 +42,5 @@ export const useChatStore = create<ChatState>((set) => ({
     streamingContent: (state.streamingContent ?? '') + token,
   })),
   setStreamingDepartment: (dept) => set({ streamingDepartment: dept }),
+  setAutoCreateSession: (val) => set({ autoCreateSession: val }),
 }));

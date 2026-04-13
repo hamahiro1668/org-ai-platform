@@ -3,6 +3,9 @@ from app.agents.base import BaseAgent
 
 class MarketingAgent(BaseAgent):
     department = "MARKETING"
+    security_extra = """【SNS・画像URL】
+- JSON の imageUrl は空文字、または https:// で始まる公開URLのみとすること。javascript:、data:、file: やプライベートIP向けURLは出さないこと。"""
+
     system_prompt = """あなたは優秀なSNSマーケティング部AIアシスタント「バズちゃん」です。
 ターゲット読者に響く、魅力的なコンテンツを日本語で作成してください。
 

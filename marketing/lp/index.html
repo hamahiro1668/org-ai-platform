@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#FFFCF7" />
+  <meta name="description" content="FLOW — みんなのAIオフィス。社長の一言で、営業・マーケ・経理AIが同時に動き出す、中小企業のための組織型AIエージェント基盤。" />
+  <title>FLOW — みんなのAIオフィス | 組織型AIエージェント基盤</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Noto Sans JP"', 'system-ui', 'sans-serif'],
+            display: ['"Playfair Display"', '"Noto Sans JP"', 'serif'],
+            mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+          },
+          colors: {
+            canvas: '#FFFCF7',
+            elevated: '#FFFFFF',
+            muted: '#F6F1EA',
+            primary: '#1F1B16',
+            secondary: '#6E6558',
+            subtle: '#A59B8C',
+            accent: '#C2410C',
+            coral: '#FFB5A7',
+            peach: '#FFD6A5',
+            gold: '#FDFFB6',
+            mint: '#CAFFBF',
+            sky: '#9BF6FF',
+            lavender: '#BDB2FF',
+            rose: '#FFC6FF',
+            sales: '#F59E6D',
+            marketing: '#D7A7FF',
+            accounting: '#FFC971',
+            analytics: '#9DB5FF',
+            general: '#8FE5C6',
+          },
+          boxShadow: {
+            'elev-1': '0 1px 2px rgba(45, 100, 95, 0.06), 0 1px 4px rgba(45, 100, 95, 0.04)',
+            'elev-2': '0 2px 8px rgba(45, 100, 95, 0.08), 0 4px 16px rgba(45, 100, 95, 0.05)',
+            'elev-3': '0 8px 24px rgba(45, 100, 95, 0.10), 0 16px 40px rgba(45, 100, 95, 0.06)',
+            'elev-4': '0 16px 44px rgba(45, 100, 95, 0.12), 0 28px 72px rgba(45, 100, 95, 0.08)',
+            'glow': '0 0 60px rgba(255, 182, 147, 0.45)',
+          },
+          borderRadius: {
+            'xs': '8px',
+            'sm': '12px',
+            'md': '16px',
+            'lg': '20px',
+            'xl': '28px',
+            '2xl': '36px',
+          },
+          backdropBlur: {
+            'thin': '8px',
+            'regular': '16px',
+            'thick': '24px',
+            'chrome': '32px',
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Noto Sans JP', system-ui, sans-serif;
+      background: #FFFCF7;
+      color: #1F1B16;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    .display { font-family: 'Playfair Display', 'Noto Sans JP', serif; letter-spacing: -0.01em; }
+    .gradient-text {
+      background: linear-gradient(135deg, #F59E6D 0%, #D7A7FF 28%, #9DB5FF 55%, #8FE5C6 82%, #FFC971 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .gradient-bg {
+      background: linear-gradient(135deg, #FFB5A7 0%, #FFD6A5 20%, #FDFFB6 38%, #CAFFBF 55%, #9BF6FF 72%, #BDB2FF 88%, #FFC6FF 100%);
+    }
+    .glass {
+      background: rgba(255, 255, 255, 0.70);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.92);
+      border-top-color: rgba(255, 255, 255, 0.98);
+    }
+    .glass-thick {
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.92);
+    }
+    .glass-chrome {
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(32px);
+      -webkit-backdrop-filter: blur(32px);
+    }
+
+    /* Ambient Background Orbs */
+    .orb {
+      position: fixed;
+      border-radius: 9999px;
+      filter: blur(80px);
+      mix-blend-mode: multiply;
+      opacity: 0.55;
+      pointer-events: none;
+      z-index: 0;
+      animation: drift 20s ease-in-out infinite alternate;
+    }
+    .orb-1 { top: -200px; left: -160px; width: 600px; height: 600px; background: #FFB5A7; animation-delay: 0s; }
+    .orb-2 { top: 20%; right: -180px; width: 520px; height: 520px; background: #9BF6FF; animation-delay: -5s; }
+    .orb-3 { bottom: 10%; left: 30%; width: 480px; height: 480px; background: #CAFFBF; animation-delay: -10s; }
+    .orb-4 { bottom: -200px; right: 15%; width: 460px; height: 460px; background: #BDB2FF; animation-delay: -15s; }
+    @keyframes drift {
+      0% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(40px, 30px) scale(1.05); }
+      100% { transform: translate(-30px, 50px) scale(0.98); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .orb { animation: none; }
+      html { scroll-behavior: auto; }
+    }
+
+    .fade-in {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 700ms cubic-bezier(0.2, 0, 0, 1), transform 700ms cubic-bezier(0.2, 0, 0, 1);
+    }
+    .fade-in.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    details[open] summary .chev { transform: rotate(180deg); }
+    .chev { transition: transform 250ms ease; }
+
+    .tone-sales { --tone: #F59E6D; }
+    .tone-marketing { --tone: #D7A7FF; }
+    .tone-accounting { --tone: #FFC971; }
+    .tone-analytics { --tone: #9DB5FF; }
+    .tone-general { --tone: #8FE5C6; }
+    .tone-assistant { --tone: #FFB5C5; }
+    .tone-accent {
+      border-top: 3px solid var(--tone);
+    }
+    .tone-dot {
+      background: var(--tone);
+      box-shadow: 0 0 20px var(--tone);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #FFB5A7 0%, #FFD6A5 20%, #FDFFB6 38%, #CAFFBF 55%, #9BF6FF 72%, #BDB2FF 88%, #FFC6FF 100%);
+      color: #1F1B16;
+      font-weight: 700;
+      box-shadow: 0 8px 24px rgba(245, 158, 109, 0.25), 0 16px 40px rgba(189, 178, 255, 0.15);
+      transition: transform 250ms cubic-bezier(0.2, 0, 0, 1), box-shadow 250ms;
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 32px rgba(245, 158, 109, 0.35), 0 24px 56px rgba(189, 178, 255, 0.25);
+    }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.92);
+      color: #1F1B16;
+      font-weight: 600;
+      box-shadow: 0 2px 8px rgba(45, 100, 95, 0.08);
+      transition: all 250ms;
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.95);
+      transform: translateY(-1px);
+    }
+  </style>
+</head>
+<body class="relative">
+
+  <!-- Ambient background orbs -->
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+  <div class="orb orb-4"></div>
+
+  <!-- Navigation -->
+  <header class="fixed top-0 left-0 right-0 z-50 px-6 py-4">
+    <nav class="max-w-6xl mx-auto glass-chrome rounded-full px-6 py-3 flex items-center justify-between shadow-elev-2">
+      <a href="#top" class="flex items-center gap-2">
+        <span class="w-8 h-8 rounded-full gradient-bg shadow-glow"></span>
+        <span class="display text-xl font-bold">FLOW</span>
+      </a>
+      <div class="hidden md:flex items-center gap-8 text-sm text-secondary">
+        <a href="#features" class="hover:text-primary transition-colors">機能</a>
+        <a href="#agents" class="hover:text-primary transition-colors">部署AI</a>
+        <a href="#architecture" class="hover:text-primary transition-colors">構成</a>
+        <a href="#pricing" class="hover:text-primary transition-colors">料金</a>
+        <a href="#faq" class="hover:text-primary transition-colors">FAQ</a>
+      </div>
+      <a href="#cta" class="btn-primary px-5 py-2 rounded-full text-sm">無料で始める</a>
+    </nav>
+  </header>
+
+  <!-- Hero -->
+  <section id="top" class="relative pt-40 pb-32 px-6">
+    <div class="max-w-5xl mx-auto text-center relative z-10">
+      <div class="inline-flex items-center gap-2 glass rounded-full px-4 py-2 text-xs font-medium text-secondary mb-8 shadow-elev-1">
+        <span class="w-2 h-2 rounded-full bg-sales animate-pulse"></span>
+        中小企業のための組織型AIエージェント基盤 SaaS
+      </div>
+      <h1 class="display text-5xl md:text-7xl lg:text-8xl font-bold leading-[1.05] mb-6">
+        あなたの会社に、<br />
+        <span class="gradient-text">AI 部署</span>を。
+      </h1>
+      <p class="text-lg md:text-xl text-secondary max-w-3xl mx-auto mb-10 leading-relaxed">
+        FLOW は、社長の一言で営業・マーケ・経理 AI が同時に動き出す、<br class="hidden md:block" />
+        組織型 AI エージェントプラットフォームです。
+      </p>
+      <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+        <a href="#cta" class="btn-primary px-8 py-4 rounded-full text-base">無料で始める →</a>
+        <a href="#features" class="btn-secondary px-8 py-4 rounded-full text-base">デモを見る</a>
+      </div>
+      <p class="mt-8 text-xs text-subtle">
+        デモアカウント: <code class="font-mono text-accent">admin@demo.com</code> / <code class="font-mono text-accent">demo1234</code>
+      </p>
+
+      <!-- Hero preview card -->
+      <div class="mt-16 max-w-4xl mx-auto glass-thick rounded-2xl p-6 md:p-8 shadow-elev-4 fade-in">
+        <div class="flex items-start gap-3 mb-4">
+          <div class="w-10 h-10 rounded-full gradient-bg shrink-0"></div>
+          <div class="flex-1 text-left">
+            <div class="text-xs text-subtle mb-1">あなた · 社長</div>
+            <div class="text-primary">先週の見込み客に、再アプローチのメールを作って。送付リストもまとめて。</div>
+          </div>
+        </div>
+        <div class="flex items-start gap-3 mb-4 tone-sales">
+          <div class="w-10 h-10 rounded-full tone-dot shrink-0 flex items-center justify-center text-xs font-bold text-primary">営業</div>
+          <div class="flex-1 text-left">
+            <div class="text-xs text-subtle mb-1">営業部 AI</div>
+            <div class="text-primary">承知しました。10 社分のパーソナライズされたメール文面と、担当者別の送付タイミング表を作成します…</div>
+          </div>
+        </div>
+        <div class="flex gap-2 flex-wrap">
+          <span class="glass rounded-full px-3 py-1 text-xs text-secondary">✓ PII スクリーナ通過</span>
+          <span class="glass rounded-full px-3 py-1 text-xs text-secondary">✓ AILog 記録済み</span>
+          <span class="glass rounded-full px-3 py-1 text-xs text-secondary">⚡ Groq Llama3-70b · 2.3s</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Problem -->
+  <section class="relative py-24 px-6">
+    <div class="max-w-5xl mx-auto relative z-10">
+      <div class="text-center mb-16 fade-in">
+        <p class="text-sm font-semibold text-accent mb-3 tracking-wide">THE PROBLEM</p>
+        <h2 class="display text-4xl md:text-5xl font-bold mb-4">中小企業のAI導入は<br/>ここで止まっている</h2>
+        <p class="text-secondary text-lg">やりたい気持ちはあっても、3 つの壁が進行を止めます。</p>
+      </div>
+      <div class="grid md:grid-cols-3 gap-6">
+        <div class="glass rounded-xl p-8 shadow-elev-2 fade-in">
+          <div class="w-12 h-12 rounded-full bg-coral/40 flex items-center justify-center mb-5 text-2xl">👥</div>
+          <h3 class="display text-xl font-bold mb-3">人材不足の壁</h3>
+          <p class="text-secondary leading-relaxed">AI を使いこなせる専任担当者がいない。学習コストが重く、片手間では続かない。</p>
+        </div>
+        <div class="glass rounded-xl p-8 shadow-elev-2 fade-in">
+          <div class="w-12 h-12 rounded-full bg-sky/40 flex items-center justify-center mb-5 text-2xl">🗂️</div>
+          <h3 class="display text-xl font-bold mb-3">情報散逸の壁</h3>
+          <p class="text-secondary leading-relaxed">各自が ChatGPT を個別契約。ノウハウも履歴も属人化し、組織の資産にならない。</p>
+        </div>
+        <div class="glass rounded-xl p-8 shadow-elev-2 fade-in">
+          <div class="w-12 h-12 rounded-full bg-lavender/40 flex items-center justify-center mb-5 text-2xl">🔒</div>
+          <h3 class="display text-xl font-bold mb-3">ガバナンスの壁</h3>
+          <p class="text-secondary leading-relaxed">個人情報流出が怖くて本格運用に踏み切れない。監査もログ収集も手が回らない。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Solution (3 steps) -->
+  <section class="relative py-24 px-6">
+    <div class="max-w-5xl mx-auto relative z-10">
+      <div class="text-center mb-16 fade-in">
+        <p class="text-sm font-semibold text-accent mb-3 tracking-wide">THE SOLUTION</p>
+        <h2 class="display text-4xl md:text-5xl font-bold mb-4">社長は、<span class="gradient-text">指示するだけ</span>。</h2>
+        <p class="text-secondary text-lg">部署判定も、実行も、記録も、FLOW が自動で進めます。</p>
+      </div>
+      <div class="grid md:grid-cols-3 gap-6 md:gap-8">
+        <div class="glass rounded-xl p-8 shadow-elev-2 relative fade-in">
+          <div class="absolute top-6 right-6 display text-6xl font-bold gradient-text opacity-60">1</div>
+          <div class="w-12 h-12 rounded-full bg-sales/30 flex items-center justify-center mb-5 text-2xl">💬</div>
+          <h3 class="display text-xl font-bold mb-3">指示する</h3>
+          <p class="text-secondary leading-relaxed">チャットに日本語で一言。部署を指定する必要はありません。</p>
+        </div>
+        <div class="glass rounded-xl p-8 shadow-elev-2 relative fade-in">
+          <div class="absolute top-6 right-6 display text-6xl font-bold gradient-text opacity-60">2</div>
+          <div class="w-12 h-12 rounded-full bg-marketing/30 flex items-center justify-center mb-5 text-2xl">🧭</div>
+          <h3 class="display text-xl font-bold mb-3">部署AIが実行</h3>
+          <p class="text-secondary leading-relaxed">Intent 分類が自動で担当部署を判定。専用 AI が Groq Llama3-70b で応答します。</p>
+        </div>
+        <div class="glass rounded-xl p-8 shadow-elev-2 relative fade-in">
+          <div class="absolute top-6 right-6 display text-6xl font-bold gradient-text opacity-60">3</div>
+          <div class="w-12 h-12 rounded-full bg-general/30 flex items-center justify-center mb-5 text-2xl">📦</div>
+          <h3 class="display text-xl font-bold mb-3">結果が届く</h3>
+          <p class="text-secondary leading-relaxed">成果物はデリバラブルに、履歴は AILog に。監査もタスク化もワンクリック。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Agents showcase -->
+  <section id="agents" class="relative py-24 px-6">
+    <div class="max-w-6xl mx-auto relative z-10">
+      <div class="text-center mb-16 fade-in">
+        <p class="text-sm font-semibold text-accent mb-3 tracking-wide">DEPARTMENT AGENTS</p>
+        <h2 class="display text-4xl md:text-5xl font-bold mb-4">部署AIラインナップ</h2>
+        <p class="text-secondary text-lg">それぞれ専用の system prompt と口調を持つ、別人格の「社内メンバー」。</p>
+      </div>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="glass rounded-xl p-6 shadow-elev-2 tone-sales tone-accent fade-in">
+          <div class="flex items-center gap-3 mb-3">
+            <span class="w-3 h-3 rounded-full tone-dot"></span>
+            <span class="text-xs font-semibold text-secondary tracking-wide">SALES</span>
+          </div>
+          <h3 class="display text-xl font-bold mb-2">営業部</h3>
+          <p class="text-secondary text-sm leading-relaxed">提案書・見積もり・営業メール・商談ノート・CRM 連携</p>
+        </div>
+        <div class="glass rounded-xl p-6 shadow-elev-2 tone-marketing tone-accent fade-in">
+          <div class="flex items-center gap-3 mb-3">
+            <span class="w-3 h-3 rounded-full tone-dot"></span>
+            <span class="text-xs font-semibold text-secondary tracking-wide">MARKETING</span>
+          </div>
+          <h3 class="display text-xl font-bold mb-2">マーケ部</h3>
+          <p class="text-secondary text-sm leading-relaxed">SNS 投稿・広告コピー・キャンペーン設計・メディア別最適化</p>
+        </div>
+        <div class="glass rounded-xl p-6 shadow-elev-2 tone-accounting tone-accent fade-in">
+          <div class="flex items-center gap-3 mb-3">
+            <span class="w-3 h-3 rounded-full tone-dot"></span>
+            <span class="text-xs font-semibold text-secondary tracking-wide">ACCOUNTING</span>
+          </div>
+          <h3 class="display text-xl font-bold mb-2">経理部</h3>
+          <p class="text-secondary text-sm leading-relaxed">請求書・経費レポート・予算管理・税務の基礎サポート</p>
+        </div>
+        <div class="glass rounded-xl p-6 shadow-elev-2 tone-analytics tone-accent fade-in">
+          <div class="flex items-center gap-3 mb-3">
+            <span class="w-3 h-3 rounded-full tone-dot"></span>
+            <span class="text-xs font-semibold text-secondary tracking-wide">ANALYTICS</span>
+          </div>
+          <h3 class="display text-xl font-bold mb-2">分析部</h3>
+          <p class="text-secondary text-sm leading-relaxed">データ分析・KPI レポート・トレンド抽出・可視化</p>
+        </div>
+        <div class="glass rounded-xl p-6 shadow-elev-2 tone-general tone-accent fade-in">
+          <div class="flex items-center gap-3 mb-3">
+            <span class="w-3 h-3 rounded-full tone-dot"></span>
+            <span class="text-xs font-semibold text-secondary tracking-wide">GENERAL</span>
+          </div>
+          <h3 class="display text-xl font-bold mb-2">総合</h3>
+          <p class="text-secondary text-sm leading-relaxed">議事録・アジェンダ・社内通達・何でも相談窓口</p>
+        </div>
+        <div class="glass rounded-xl p-6 shadow-elev-2 tone-assistant tone-accent fade-in">
+          <div class="flex items-center gap-3 mb-3">
+            <span class="w-3 h-3 rounded-full tone-dot"></span>
+            <span class="text-xs font-semibold text-secondary tracking-wide">CUSTOM</span>
+          </div>
+          <h3 class="display text-xl font-bold mb-2">独自部署</h3>
+          <p class="text-secondary text-sm leading-relaxed"><code class="text-xs font-mono text-accent">BaseAgent</code> を継承して何部署でも追加可能。法務・人事・カスタマーサポート等</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section id="features" class="relative py-24 px-6">
+    <div class="max-w-6xl mx-auto relative z-10">
+      <div class="text-center mb-16 fade-in">
+        <p class="text-sm font-semibold text-accent mb-3 tracking-wide">FEATURES</p>
+        <h2 class="display text-4xl md:text-5xl font-bold mb-4">機能ハイライト</h2>
+        <p class="text-secondary text-lg">AI オフィスを動かすための、必要なものが全部入り。</p>
+      </div>
+      <div class="grid md:grid-cols-2 gap-6">
+        <div class="glass rounded-xl p-8 shadow-elev-2 fade-in">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-sm gradient-bg flex items-center justify-center text-lg">💬</div>
+            <h3 class="display text-2xl font-bold">統合チャット</h3>
+          </div>
+          <p class="text-secondary leading-relaxed">全部署 AI への窓口。リアルタイム応答、ファイル添付、メッセージごとの部署判定とソース表示。</p>
+        </div>
+        <div class="glass rounded-xl p-8 shadow-elev-2 fade-in">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-sm gradient-bg flex items-center justify-center text-lg">📋</div>
+            <h3 class="display text-2xl font-bold">タスク管理</h3>
+          </div>
+          <p class="text-secondary leading-relaxed">チャットから生まれた作業を Task 化。ステータス追跡、n8n ワークフロー自動起動、進捗サイドバー。</p>
+        </div>
+        <div class="glass rounded-xl p-8 shadow-elev-2 fade-in">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-sm gradient-bg flex items-center justify-center text-lg">📦</div>
+            <h3 class="display text-2xl font-bold">デリバラブルボード</h3>
+          </div>
+          <p class="text-secondary leading-relaxed">AI が生成した成果物をドラッグ&ドロップで整理。採用・却下・再生成がワンクリック。</p>
+        </div>
+        <div class="glass rounded-xl p-8 shadow-elev-2 fade-in">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-sm gradient-bg flex items-center justify-center text-lg">🛡️</div>
+            <h3 class="display text-2xl font-bold">ガバナンス画面</h3>
+          </div>
+          <p class="text-secondary leading-relaxed">全 AI 入出力を AILog で閲覧。PII リスクは RiskEvent としてワンクリック解決。</p>
+        </div>
+        <div class="glass rounded-xl p-8 shadow-elev-2 fade-in">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-sm gradient-bg flex items-center justify-center text-lg">📊</div>
+            <h3 class="display text-2xl font-bold">経営ダッシュボード</h3>
+          </div>
+          <p class="text-secondary leading-relaxed">部署ごとリクエスト数、リスク集計、トークン消費、タスク完了率を 1 画面で把握。</p>
+        </div>
+        <div class="glass rounded-xl p-8 shadow-elev-2 fade-in">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-sm gradient-bg flex items-center justify-center text-lg">🔗</div>
+            <h3 class="display text-2xl font-bold">マルチ LLM</h3>
+          </div>
+          <p class="text-secondary leading-relaxed">LLMRouter 経由で Groq / OpenAI / Anthropic を切替&フェイルオーバ。ベンダーロックインなし。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Architecture -->
+  <section id="architecture" class="relative py-24 px-6">
+    <div class="max-w-5xl mx-auto relative z-10">
+      <div class="text-center mb-16 fade-in">
+        <p class="text-sm font-semibold text-accent mb-3 tracking-wide">ARCHITECTURE</p>
+        <h2 class="display text-4xl md:text-5xl font-bold mb-4">3 層で、すべてを分離。</h2>
+        <p class="text-secondary text-lg">フロント・ゲートウェイ・AI エンジンを独立スケール可能に。</p>
+      </div>
+      <div class="glass-thick rounded-2xl p-8 md:p-12 shadow-elev-4 fade-in">
+        <div class="grid md:grid-cols-3 gap-4 md:gap-6 text-center">
+          <div class="glass rounded-lg p-6">
+            <div class="text-xs font-mono text-subtle mb-2">:3000</div>
+            <div class="display text-xl font-bold mb-1">web</div>
+            <div class="text-xs text-secondary">React 18 / Vite / TypeScript</div>
+          </div>
+          <div class="flex items-center justify-center text-3xl text-subtle">→</div>
+          <div class="glass rounded-lg p-6">
+            <div class="text-xs font-mono text-subtle mb-2">:4000</div>
+            <div class="display text-xl font-bold mb-1">api-gateway</div>
+            <div class="text-xs text-secondary">Fastify / JWT / Prisma</div>
+          </div>
+        </div>
+        <div class="flex justify-center my-6 text-3xl text-subtle">↓</div>
+        <div class="grid md:grid-cols-3 gap-4 md:gap-6 text-center">
+          <div class="glass rounded-lg p-6 tone-sales tone-accent">
+            <div class="text-xs font-mono text-subtle mb-2">:8000</div>
+            <div class="display text-xl font-bold mb-1">ai-engine</div>
+            <div class="text-xs text-secondary">FastAPI / Python 3.11</div>
+          </div>
+          <div class="glass rounded-lg p-6 tone-analytics tone-accent">
+            <div class="text-xs font-mono text-subtle mb-2">:5432</div>
+            <div class="display text-xl font-bold mb-1">Postgres</div>
+            <div class="text-xs text-secondary">Prisma / SQLite(dev)</div>
+          </div>
+          <div class="glass rounded-lg p-6 tone-marketing tone-accent">
+            <div class="text-xs font-mono text-subtle mb-2">:5678</div>
+            <div class="display text-xl font-bold mb-1">n8n</div>
+            <div class="text-xs text-secondary">Workflows / Webhooks</div>
+          </div>
+        </div>
+        <div class="mt-8 pt-8 border-t border-white/60 flex flex-wrap gap-2 justify-center">
+          <span class="glass rounded-full px-4 py-1.5 text-xs text-secondary">Groq Llama3-70b</span>
+          <span class="glass rounded-full px-4 py-1.5 text-xs text-secondary">OpenAI</span>
+          <span class="glass rounded-full px-4 py-1.5 text-xs text-secondary">Anthropic</span>
+          <span class="glass rounded-full px-4 py-1.5 text-xs text-secondary">Docker Compose</span>
+          <span class="glass rounded-full px-4 py-1.5 text-xs text-secondary">Turbo monorepo</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Security -->
+  <section class="relative py-24 px-6">
+    <div class="max-w-5xl mx-auto relative z-10">
+      <div class="text-center mb-16 fade-in">
+        <p class="text-sm font-semibold text-accent mb-3 tracking-wide">SECURITY &amp; GOVERNANCE</p>
+        <h2 class="display text-4xl md:text-5xl font-bold mb-4">3 階層の防御で、<br/>AI 活用を安全に。</h2>
+      </div>
+      <div class="grid md:grid-cols-3 gap-6">
+        <div class="glass rounded-xl p-8 shadow-elev-2 fade-in">
+          <div class="text-xs font-mono text-subtle mb-2">01</div>
+          <h3 class="display text-xl font-bold mb-3">入力検査</h3>
+          <p class="text-secondary text-sm leading-relaxed mb-4">PIIScreener がメール・電話番号・クレカ・マイナンバーを検出し、LOW/MEDIUM/HIGH/CRITICAL で分類。</p>
+          <code class="text-xs text-accent font-mono">pii_screener.py</code>
+        </div>
+        <div class="glass rounded-xl p-8 shadow-elev-2 fade-in">
+          <div class="text-xs font-mono text-subtle mb-2">02</div>
+          <h3 class="display text-xl font-bold mb-3">監査ログ</h3>
+          <p class="text-secondary text-sm leading-relaxed mb-4">全 LLM 呼び出しを AILog に記録。inputText / outputText / tokens / provider / riskScore を保存。</p>
+          <code class="text-xs text-accent font-mono">AILog table</code>
+        </div>
+        <div class="glass rounded-xl p-8 shadow-elev-2 fade-in">
+          <div class="text-xs font-mono text-subtle mb-2">03</div>
+          <h3 class="display text-xl font-bold mb-3">リスク可視化</h3>
+          <p class="text-secondary text-sm leading-relaxed mb-4">HIGH/CRITICAL を RiskEvent として切り出し、GovernancePage でワンクリック解決。</p>
+          <code class="text-xs text-accent font-mono">RiskEvent table</code>
+        </div>
+      </div>
+      <div class="mt-8 glass rounded-xl p-6 flex flex-wrap gap-4 justify-center text-sm text-secondary shadow-elev-1 fade-in">
+        <span>✓ JWT (HS256, 7d)</span>
+        <span>✓ bcryptjs パスワード</span>
+        <span>✓ マルチテナント分離</span>
+        <span>✓ CORS 制限</span>
+        <span>✓ Zod バリデーション</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing -->
+  <section id="pricing" class="relative py-24 px-6">
+    <div class="max-w-6xl mx-auto relative z-10">
+      <div class="text-center mb-16 fade-in">
+        <p class="text-sm font-semibold text-accent mb-3 tracking-wide">PRICING</p>
+        <h2 class="display text-4xl md:text-5xl font-bold mb-4">シンプルな 3 プラン</h2>
+        <p class="text-secondary text-lg">会社の規模に合わせて選ぶだけ。</p>
+      </div>
+      <div class="grid md:grid-cols-3 gap-6">
+        <div class="glass rounded-xl p-8 shadow-elev-2 flex flex-col fade-in">
+          <div class="text-xs font-mono text-subtle tracking-wider mb-2">STARTER</div>
+          <div class="display text-4xl font-bold mb-2">小規模</div>
+          <p class="text-secondary text-sm mb-6">〜5 名のチーム向け</p>
+          <ul class="space-y-3 text-sm text-secondary mb-8 flex-1">
+            <li class="flex gap-2"><span class="text-sales">✓</span> 全 5 部署 AI</li>
+            <li class="flex gap-2"><span class="text-sales">✓</span> 基本ガバナンス</li>
+            <li class="flex gap-2"><span class="text-sales">✓</span> 月間 10 万トークン</li>
+            <li class="flex gap-2"><span class="text-sales">✓</span> タスク管理</li>
+          </ul>
+          <a href="#cta" class="btn-secondary px-6 py-3 rounded-full text-sm text-center">はじめる</a>
+        </div>
+        <div class="glass-thick rounded-xl p-8 shadow-elev-4 flex flex-col relative fade-in" style="border: 2px solid transparent; background-clip: padding-box;">
+          <div class="absolute -top-3 left-1/2 -translate-x-1/2 gradient-bg rounded-full px-4 py-1 text-xs font-bold text-primary shadow-glow">人気</div>
+          <div class="text-xs font-mono text-subtle tracking-wider mb-2">PRO</div>
+          <div class="display text-4xl font-bold mb-2 gradient-text">中規模</div>
+          <p class="text-secondary text-sm mb-6">〜30 名のチーム向け</p>
+          <ul class="space-y-3 text-sm text-secondary mb-8 flex-1">
+            <li class="flex gap-2"><span class="text-sales">✓</span> STARTER の全機能</li>
+            <li class="flex gap-2"><span class="text-sales">✓</span> マルチ LLM (Groq + OpenAI + Anthropic)</li>
+            <li class="flex gap-2"><span class="text-sales">✓</span> n8n ワークフロー連携</li>
+            <li class="flex gap-2"><span class="text-sales">✓</span> 月間 100 万トークン</li>
+            <li class="flex gap-2"><span class="text-sales">✓</span> 優先サポート</li>
+          </ul>
+          <a href="#cta" class="btn-primary px-6 py-3 rounded-full text-sm text-center">人気プランで始める</a>
+        </div>
+        <div class="glass rounded-xl p-8 shadow-elev-2 flex flex-col fade-in">
+          <div class="text-xs font-mono text-subtle tracking-wider mb-2">ENTERPRISE</div>
+          <div class="display text-4xl font-bold mb-2">大規模</div>
+          <p class="text-secondary text-sm mb-6">30 名以上のチーム向け</p>
+          <ul class="space-y-3 text-sm text-secondary mb-8 flex-1">
+            <li class="flex gap-2"><span class="text-sales">✓</span> PRO の全機能</li>
+            <li class="flex gap-2"><span class="text-sales">✓</span> SSO / 権限階層</li>
+            <li class="flex gap-2"><span class="text-sales">✓</span> 専用インスタンス</li>
+            <li class="flex gap-2"><span class="text-sales">✓</span> 監査ログエクスポート</li>
+            <li class="flex gap-2"><span class="text-sales">✓</span> トークン無制限</li>
+          </ul>
+          <a href="#cta" class="btn-secondary px-6 py-3 rounded-full text-sm text-center">お問い合わせ</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq" class="relative py-24 px-6">
+    <div class="max-w-3xl mx-auto relative z-10">
+      <div class="text-center mb-16 fade-in">
+        <p class="text-sm font-semibold text-accent mb-3 tracking-wide">FAQ</p>
+        <h2 class="display text-4xl md:text-5xl font-bold mb-4">よくある質問</h2>
+      </div>
+      <div class="space-y-4">
+        <details class="glass rounded-xl p-6 shadow-elev-1 fade-in">
+          <summary class="flex items-center justify-between cursor-pointer font-semibold text-primary">
+            <span>社内のデータは LLM プロバイダに送信されますか？</span>
+            <span class="chev text-subtle">▼</span>
+          </summary>
+          <p class="mt-4 text-secondary text-sm leading-relaxed">はい、LLM 呼び出し時はプロバイダに送信されます。ただし、入力は必ず PIIScreener を通過した後で送信され、個人情報はマスキングまたはブロックされます。ENTERPRISE プランでは自己ホスト LLM への接続にも対応可能です。</p>
+        </details>
+        <details class="glass rounded-xl p-6 shadow-elev-1 fade-in">
+          <summary class="flex items-center justify-between cursor-pointer font-semibold text-primary">
+            <span>部署を追加することはできますか？</span>
+            <span class="chev text-subtle">▼</span>
+          </summary>
+          <p class="mt-4 text-secondary text-sm leading-relaxed">はい。<code class="font-mono text-accent">BaseAgent</code> を継承したクラスを作成し、<code class="font-mono text-accent">orchestrator.py</code> に登録するだけで新部署を追加できます。法務・人事・カスタマーサポートなど、必要な部署を自由に増やせます。</p>
+        </details>
+        <details class="glass rounded-xl p-6 shadow-elev-1 fade-in">
+          <summary class="flex items-center justify-between cursor-pointer font-semibold text-primary">
+            <span>オンプレミス環境にデプロイできますか？</span>
+            <span class="chev text-subtle">▼</span>
+          </summary>
+          <p class="mt-4 text-secondary text-sm leading-relaxed">はい。<code class="font-mono text-accent">docker-compose up --build</code> でポータブルに起動できます。PostgreSQL・n8n もコンテナ化済み。社内 VPC 内での完全分離運用が可能です。</p>
+        </details>
+        <details class="glass rounded-xl p-6 shadow-elev-1 fade-in">
+          <summary class="flex items-center justify-between cursor-pointer font-semibold text-primary">
+            <span>既存の CRM や Slack と連携できますか？</span>
+            <span class="chev text-subtle">▼</span>
+          </summary>
+          <p class="mt-4 text-secondary text-sm leading-relaxed">n8n ワークフロー経由で 400 以上のサービスと連携できます。Salesforce・HubSpot・Slack・Gmail・Google Sheets などは標準ノードで対応。タスク完了時に Webhook で自動通知も可能です。</p>
+        </details>
+        <details class="glass rounded-xl p-6 shadow-elev-1 fade-in">
+          <summary class="flex items-center justify-between cursor-pointer font-semibold text-primary">
+            <span>デモを触ってみたいのですが？</span>
+            <span class="chev text-subtle">▼</span>
+          </summary>
+          <p class="mt-4 text-secondary text-sm leading-relaxed">リポジトリをクローンし、<code class="font-mono text-accent">docker-compose up --build</code> で即座にローカル環境が起動します。デモアカウント <code class="font-mono text-accent">admin@demo.com</code> / <code class="font-mono text-accent">demo1234</code> でログインできます。</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- Final CTA -->
+  <section id="cta" class="relative py-32 px-6">
+    <div class="max-w-4xl mx-auto relative z-10">
+      <div class="glass-thick rounded-2xl p-12 md:p-16 text-center shadow-elev-4 fade-in">
+        <h2 class="display text-4xl md:text-6xl font-bold mb-6 leading-tight">
+          今すぐ、あなたの会社に<br/>
+          <span class="gradient-text">AI 部署を。</span>
+        </h2>
+        <p class="text-secondary text-lg mb-10 max-w-2xl mx-auto">
+          セットアップは 5 分。デモアカウントでいきなり動かせます。<br/>
+          社長の指示一つで、組織が動き出す体験を今すぐ。
+        </p>
+        <div class="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
+          <a href="#" class="btn-primary px-10 py-4 rounded-full text-base">無料で始める →</a>
+          <a href="#" class="btn-secondary px-10 py-4 rounded-full text-base">GitHub で見る</a>
+        </div>
+        <div class="glass rounded-xl p-5 inline-block shadow-elev-1">
+          <code class="text-xs md:text-sm font-mono text-accent whitespace-nowrap">
+            docker-compose up --build
+          </code>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="relative py-12 px-6 border-t border-white/40">
+    <div class="max-w-6xl mx-auto relative z-10 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-subtle">
+      <div class="flex items-center gap-3">
+        <span class="w-6 h-6 rounded-full gradient-bg"></span>
+        <span class="display font-bold text-primary">FLOW</span>
+        <span>— みんなのAIオフィス</span>
+      </div>
+      <div class="flex gap-6">
+        <a href="#features" class="hover:text-primary transition-colors">機能</a>
+        <a href="#pricing" class="hover:text-primary transition-colors">料金</a>
+        <a href="#faq" class="hover:text-primary transition-colors">FAQ</a>
+      </div>
+      <div>© 2026 FLOW Platform</div>
+    </div>
+  </footer>
+
+  <script>
+    // Fade-in on scroll
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+
+    document.querySelectorAll('.fade-in').forEach((el) => observer.observe(el));
+
+    // Trigger hero fade-in immediately
+    requestAnimationFrame(() => {
+      document.querySelectorAll('#top .fade-in').forEach((el) => el.classList.add('visible'));
+    });
+  </script>
+</body>
+</html>

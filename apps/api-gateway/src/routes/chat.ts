@@ -82,6 +82,61 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ success: true, data: sessions });
   });
 
+  /** 組織内の全セッションタイトル・メッセージ本文を横断検索（秘書AI検索用） */
+  app.get('/search', { preHandler: requireAuth }, async (request, reply) => {
+    const payload = request.user as { orgId: string };
+    const q = typeof request.query === 'object' && request.query && 'q' in request.query
+      ? String((request.query as { q?: string }).q ?? '').trim()
+      : '';
+    if (q.length < 1) {
+      return reply.send({
+        success: true,
+        data: { sessions: [] as unknown[], messages: [] as unknown[] },
+      });
+    }
+
+    const [sessionHits, messageHits] = await Promise.all([
+      prisma.chatSession.findMany({
+        where: {
+          orgId: payload.orgId,
+          title: { contains: q, mode: 'insensitive' },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 15,
+      }),
+      prisma.message.findMany({
+        where: {
+          content: { contains: q, mode: 'insensitive' },
+          session: { orgId: payload.orgId },
+        },
+        include: {
+          session: { select: { id: true, title: true, createdAt: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 25,
+      }),
+    ]);
+
+    return reply.send({
+      success: true,
+      data: {
+        sessions: sessionHits.map((s) => ({
+          id: s.id,
+          title: s.title,
+          createdAt: s.createdAt.toISOString(),
+        })),
+        messages: messageHits.map((m) => ({
+          id: m.id,
+          sessionId: m.sessionId,
+          sessionTitle: m.session.title,
+          role: m.role,
+          snippet: m.content.length > 200 ? `${m.content.slice(0, 200)}…` : m.content,
+          createdAt: m.createdAt.toISOString(),
+        })),
+      },
+    });
+  });
+
   // 従来の非ストリーミングエンドポイント（互換性維持）
   app.post('/sessions/:id/messages', { preHandler: requireAuth }, async (request, reply) => {
     const { id } = request.params as { id: string };

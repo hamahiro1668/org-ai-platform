@@ -1,6 +1,23 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=orgai
+      - POSTGRES_PASSWORD=orgai-dev-password
+      - POSTGRES_DB=orgai
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orgai"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   n8n:
     image: n8nio/n8n
     ports:
@@ -23,9 +40,12 @@ services:
       - "8000:8000"
     env_file: .env
     environment:
-      - DATABASE_URL=file:/app/data/app.db
+      - DATABASE_URL=postgresql://orgai:orgai-dev-password@postgres:5432/orgai
     volumes:
       - ./data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
@@ -41,15 +61,17 @@ services:
     depends_on:
       ai-engine:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
       n8n:
         condition: service_started
     env_file: .env
     environment:
-      - DATABASE_URL=file:/app/data/app.db
+      - DATABASE_URL=postgresql://orgai:orgai-dev-password@postgres:5432/orgai
       - AI_ENGINE_URL=http://ai-engine:8000
       - N8N_URL=http://n8n:5678
-      - N8N_WORKFLOW_ID=4IawO5ll3qF0sVpV
-      - N8N_API_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhMzMzOTliOC0wNmYzLTRkY2QtYmFmOS1kNTNmZTIzNmE5YzciLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwianRpIjoiMjc2ODlkYzUtNDA3NS00MDQzLWEwMWMtMjJkMjlkZjBkNTYxIiwiaWF0IjoxNzcyOTcxMDEyLCJleHAiOjE4MDQ1MDcwMTI3Mjl9.cANyOCH12QI44puUM-6DETfmocHKBjNe8pnu-V8oNiA
+      - N8N_WORKFLOW_ID=${N8N_WORKFLOW_ID}
+      - N8N_API_KEY=${N8N_API_KEY}
       # ローカルn8nを使用（クラウドは手動更新後に有効化）
       # - N8N_CLOUD_URL=https://hamahiro.app.n8n.cloud
     volumes:
@@ -74,3 +96,4 @@ services:
 
 volumes:
   n8n_data:
+  pgdata:

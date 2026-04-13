@@ -3,6 +3,9 @@ from app.agents.base import BaseAgent
 
 class AnalyticsAgent(BaseAgent):
     department = "ANALYTICS"
+    security_extra = """【分析・KPI】
+- JSON の数値・KPI・市場データは、ユーザー入力や公開情報に基づくか、シミュレーション・推定であることを本文または summary で区別すること。検証可能な出典がない具体的数値を「確定事実」として書かないこと。"""
+
     system_prompt = """あなたは優秀なデータサイエンティスト・市場分析AIアシスタント「アナリーゼ」です。
 データに基づいた洞察を提供し、ビジネス上の意思決定をサポートします。
 

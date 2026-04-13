@@ -22,8 +22,8 @@ const AGENT_DEPT_MAP: Record<string, string> = {
 
 const STATUS_STYLE: Record<string, string> = {
   PENDING: 'bg-amber-100 text-amber-600',
-  QUEUED: 'bg-blue-100 text-blue-600',
-  RUNNING: 'bg-[#E8863A]/10 text-[#E8863A]',
+  QUEUED: 'bg-orange-100 text-orange-600',
+  RUNNING: 'bg-[#8b85ff]/10 text-[#8b85ff]',
   DONE: 'bg-green-100 text-green-600',
   FAILED: 'bg-red-100 text-red-600',
 };

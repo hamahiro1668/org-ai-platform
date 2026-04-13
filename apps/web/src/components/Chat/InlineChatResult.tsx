@@ -5,13 +5,8 @@ import {
   Mail, Send, Copy, FileText, Calendar, BarChart3, Share2,
   Twitter, Instagram, Linkedin,
 } from 'lucide-react';
-
-const DEPT_ACCENT: Record<string, string> = {
-  SALES: '#E8863A', MARKETING: '#8B5CF6', ACCOUNTING: '#D97706', GENERAL: '#0EA5E9', ANALYTICS: '#7B61FF',
-};
-const DEPT_LABEL: Record<string, string> = {
-  SALES: '営業部', MARKETING: 'マーケ部', ACCOUNTING: '経理部', GENERAL: '総合', ANALYTICS: 'データ分析',
-};
+import { DEPT_ACCENT, DEPT_LABEL } from '../../constants/departments';
+import { parseOutputJson } from '../../utils/parseTaskOutput';
 
 interface TaskLog {
   message: string;
@@ -39,27 +34,12 @@ const STEP_LABELS = [
   '結果を整形中...',
 ];
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function parseOutputJson(output?: string): any | null {
-  if (!output) return null;
-  try {
-    return JSON.parse(output);
-  } catch {
-    // Try to extract JSON from markdown code block
-    const match = output.match(/```json\s*([\s\S]*?)```/);
-    if (match) {
-      try { return JSON.parse(match[1]); } catch { /* skip */ }
-    }
-    return null;
-  }
-}
-
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
       onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-      className="flex items-center gap-1 text-[10px] text-[#8A8A8A] hover:text-[#E8863A] transition-colors px-1.5 py-0.5 rounded-lg"
+      className="flex items-center gap-1 text-[10px] text-[#8A8A8A] hover:text-[#8b85ff] transition-colors px-1.5 py-0.5 rounded-lg"
     >
       {copied ? <Check size={10} /> : <Copy size={10} />}
       {copied ? 'コピー済' : 'コピー'}
@@ -72,7 +52,7 @@ function EmailPreview({ data, onAction }: { data: any; onAction?: (action: strin
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2 mb-2">
-        <Mail size={14} className="text-[#E8863A]" />
+        <Mail size={14} className="text-[#8b85ff]" />
         <span className="text-xs font-semibold text-[#2D2D2D]">メール</span>
         <CopyButton text={`To: ${data.to}\n件名: ${data.subject}\n\n${data.body}`} />
       </div>
@@ -87,7 +67,7 @@ function EmailPreview({ data, onAction }: { data: any; onAction?: (action: strin
       {onAction && (
         <motion.button
           onClick={() => onAction('send_email')}
-          className="w-full bg-[#E8863A] hover:bg-[#d6762f] text-white text-xs font-semibold py-2 rounded-xl flex items-center justify-center gap-1.5"
+          className="w-full bg-[#8b85ff] hover:bg-[#7c76f2] text-white text-xs font-semibold py-2 rounded-xl flex items-center justify-center gap-1.5"
           whileTap={{ scale: 0.98 }}
         >
           <Send size={12} /> Gmail で送信
@@ -117,7 +97,7 @@ function SNSPreview({ data, onAction }: { data: any; onAction?: (action: string)
       {data.hashtags?.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {data.hashtags.map((tag: string) => (
-            <span key={tag} className="text-[10px] text-[#E8863A] font-medium">#{tag}</span>
+            <span key={tag} className="text-[10px] text-[#8b85ff] font-medium">#{tag}</span>
           ))}
         </div>
       )}
@@ -140,7 +120,7 @@ function DocumentPreview({ data }: { data: any }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <FileText size={14} className="text-[#8B5CF6]" />
+        <FileText size={14} className="text-[#9a95ff]" />
         <span className="text-xs font-semibold text-[#2D2D2D]">{data.title}</span>
         <CopyButton text={data.content ?? data.summary ?? ''} />
       </div>
@@ -160,14 +140,14 @@ function SchedulePreview({ data, onAction }: { data: any; onAction?: (action: st
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <Calendar size={14} className="text-[#D97706]" />
+        <Calendar size={14} className="text-[#b0acff]" />
         <span className="text-xs font-semibold text-[#2D2D2D]">{data.title}</span>
       </div>
       {data.preferredDates && (
         <div className="space-y-1">
           {data.preferredDates.map((d: string, i: number) => (
             <div key={i} className="flex items-center gap-2 text-[11px] text-[#2D2D2D] bg-[#f5f5f0] rounded-lg px-3 py-1.5">
-              <Calendar size={10} className="text-[#D97706]" /> {d}
+              <Calendar size={10} className="text-[#b0acff]" /> {d}
               {data.duration && <span className="text-[#8A8A8A]">({data.duration}分)</span>}
             </div>
           ))}
@@ -179,7 +159,7 @@ function SchedulePreview({ data, onAction }: { data: any; onAction?: (action: st
       {onAction && (
         <motion.button
           onClick={() => onAction('create_event')}
-          className="w-full bg-[#D97706] hover:bg-[#c06806] text-white text-xs font-semibold py-2 rounded-xl flex items-center justify-center gap-1.5"
+          className="w-full bg-[#b0acff] hover:bg-[#c06806] text-white text-xs font-semibold py-2 rounded-xl flex items-center justify-center gap-1.5"
           whileTap={{ scale: 0.98 }}
         >
           <Calendar size={12} /> カレンダーに登録
@@ -194,7 +174,7 @@ function MeetingNotesPreview({ data }: { data: any }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <FileText size={14} className="text-[#E8863A]" />
+        <FileText size={14} className="text-[#8b85ff]" />
         <span className="text-xs font-semibold text-[#2D2D2D]">{data.title}</span>
         {data.date && <span className="text-[10px] text-[#8A8A8A]">{data.date}</span>}
       </div>
@@ -232,7 +212,7 @@ function ReceiptSummaryPreview({ data }: { data: any }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <FileText size={14} className="text-[#D97706]" />
+        <FileText size={14} className="text-[#b0acff]" />
         <span className="text-xs font-semibold text-[#2D2D2D]">経費まとめ</span>
       </div>
       {data.receipts?.length > 0 && (
@@ -276,7 +256,7 @@ function AnalyticsPreview({ data }: { data: any }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <BarChart3 size={14} className="text-[#7B61FF]" />
+        <BarChart3 size={14} className="text-[#8d9dff]" />
         <span className="text-xs font-semibold text-[#2D2D2D]">{data.title}</span>
       </div>
       {data.summary && <p className="text-[11px] text-[#8A8A8A]">{data.summary}</p>}
@@ -288,7 +268,7 @@ function AnalyticsPreview({ data }: { data: any }) {
               <span className="w-16 text-[#8A8A8A] truncate flex-shrink-0">{d.label}</span>
               <div className="flex-1 h-4 bg-[#f5f5f0] rounded-full overflow-hidden">
                 <motion.div
-                  className="h-full rounded-full bg-[#7B61FF]"
+                  className="h-full rounded-full bg-[#8d9dff]"
                   initial={{ width: 0 }}
                   animate={{ width: `${(d.value / maxVal) * 100}%` }}
                   transition={{ duration: 0.5, delay: i * 0.05 }}
@@ -311,8 +291,8 @@ function AnalyticsPreview({ data }: { data: any }) {
         </div>
       )}
       {data.conclusion && (
-        <div className="p-2 bg-[#7B61FF]/5 rounded-lg">
-          <p className="text-[11px] text-[#7B61FF] font-medium">{data.conclusion}</p>
+        <div className="p-2 bg-[#8d9dff]/5 rounded-lg">
+          <p className="text-[11px] text-[#8d9dff] font-medium">{data.conclusion}</p>
         </div>
       )}
     </div>
@@ -371,7 +351,7 @@ export function InlineChatResult({ taskTitle, department, logs, status, output, 
             {DEPT_LABEL[department] ?? department} タスク
           </p>
         </div>
-        {status === 'executing' && <Loader2 size={14} className="text-[#E8863A] animate-spin" />}
+        {status === 'executing' && <Loader2 size={14} className="text-[#8b85ff] animate-spin" />}
         {status === 'done' && <Check size={14} className="text-green-500" />}
         {status === 'failed' && <AlertCircle size={14} className="text-red-400" />}
         {status === 'rejected' && <X size={14} className="text-red-400" />}
@@ -392,7 +372,7 @@ export function InlineChatResult({ taskTitle, department, logs, status, output, 
               {/* Executing */}
               {status === 'executing' && (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-xs text-[#E8863A] font-medium">
+                  <div className="flex items-center gap-2 text-xs text-[#8b85ff] font-medium">
                     <Loader2 size={12} className="animate-spin" />
                     {STEP_LABELS[currentStep]}
                   </div>
@@ -464,7 +444,7 @@ export function InlineChatResult({ taskTitle, department, logs, status, output, 
               {/* Pending */}
               {status === 'pending' && (
                 <div className="flex gap-2 pt-2">
-                  <motion.button onClick={onApprove} className="flex-1 bg-[#E8863A] hover:bg-[#d6762f] text-white text-xs font-semibold py-2.5 rounded-xl flex items-center justify-center gap-1.5" whileTap={{ scale: 0.98 }}>
+                  <motion.button onClick={onApprove} className="flex-1 bg-[#8b85ff] hover:bg-[#7c76f2] text-white text-xs font-semibold py-2.5 rounded-xl flex items-center justify-center gap-1.5" whileTap={{ scale: 0.98 }}>
                     <Check size={13} /> 承認・実行
                   </motion.button>
                   <motion.button onClick={onReject} className="flex-1 bg-[#f5f5f0] hover:bg-gray-200 text-[#8A8A8A] text-xs font-semibold py-2.5 rounded-xl flex items-center justify-center gap-1.5" whileTap={{ scale: 0.98 }}>

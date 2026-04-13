@@ -11,7 +11,7 @@ function CopyButton({ text, label = 'コピー' }: { text: string; label?: strin
     setTimeout(() => setCopied(false), 2000);
   };
   return (
-    <button onClick={handle} className="text-xs text-[#8A8A8A] hover:text-[#E8863A] flex items-center gap-1 transition-colors">
+    <button onClick={handle} className="text-xs text-[#8A8A8A] hover:text-[#8b85ff] flex items-center gap-1 transition-colors">
       {copied ? <Check size={12} /> : <Copy size={12} />}
       {copied ? 'コピー済み' : label}
     </button>
@@ -31,7 +31,7 @@ export default function ResearchPanel({ research, onApprove }: ResearchPanelProp
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
       <div className="bg-white border border-[#eae8e3] rounded-3xl p-5 space-y-4 shadow-sm">
         <div className="flex items-center gap-2 border-b border-[#eae8e3] pb-3">
-          <div className="w-8 h-8 bg-[#8B5CF6]/10 rounded-xl flex items-center justify-center"><span className="text-sm">🔍</span></div>
+          <div className="w-8 h-8 bg-[#9a95ff]/10 rounded-xl flex items-center justify-center"><span className="text-sm">🔍</span></div>
           <h3 className="font-bold text-[#2D2D2D] text-sm">リサーチレポート</h3>
           <div className="ml-auto"><CopyButton text={fullText} label="全文コピー" /></div>
         </div>
@@ -40,7 +40,7 @@ export default function ResearchPanel({ research, onApprove }: ResearchPanelProp
 
         <div className="space-y-1">
           <p className="text-xs font-semibold text-[#8A8A8A]">エグゼクティブサマリー</p>
-          <p className="text-xs text-[#2D2D2D] leading-relaxed bg-[#E8863A]/5 rounded-2xl p-3 border border-[#E8863A]/10">{research.summary}</p>
+          <p className="text-xs text-[#2D2D2D] leading-relaxed bg-[#8b85ff]/5 rounded-2xl p-3 border border-[#8b85ff]/10">{research.summary}</p>
         </div>
 
         <div className="space-y-2 max-h-64 overflow-y-auto scrollbar-hide">
@@ -84,7 +84,7 @@ export default function ResearchPanel({ research, onApprove }: ResearchPanelProp
         )}
 
         <button
-          className="bg-[#E8863A] hover:bg-[#d6762f] text-white rounded-xl py-2 px-5 text-sm font-semibold w-full flex items-center justify-center gap-1.5 shadow-sm shadow-orange-200/50 transition-all"
+          className="bg-[#8b85ff] hover:bg-[#7c76f2] text-white rounded-xl py-2 px-5 text-sm font-semibold w-full flex items-center justify-center gap-1.5 shadow-sm shadow-glow-primary transition-all"
           onClick={onApprove}
         >
           <CheckCheck size={14} /> 承認・完了
