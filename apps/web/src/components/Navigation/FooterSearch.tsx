@@ -1,9 +1,16 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { Menu, Search, Sparkles } from 'lucide-react';
+import { ClipboardList, Menu, Package, Search, Settings as SettingsIcon, Shield, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
 import { useFooterSearchStore } from '../../store/footerSearchStore';
+
+const QUICK_LINKS = [
+  { label: 'タスク管理', path: '/tasks', icon: ClipboardList, desc: 'AI実行キュー' },
+  { label: '成果物', path: '/deliverables', icon: Package, desc: '完了した出力' },
+  { label: 'ガバナンス', path: '/governance', icon: Shield, desc: 'ログ・リスク監視' },
+  { label: '設定', path: '/settings', icon: SettingsIcon, desc: 'プロフィール・ファイル' },
+] as const;
 
 type SearchSessionHit = { id: string; title: string | null; createdAt: string };
 type SearchMessageHit = {
@@ -75,7 +82,15 @@ export function FooterSearch() {
     navigate(`/chat/${sessionId}`);
   };
 
+  const goLink = (path: string) => {
+    setQuery('');
+    setFocused(false);
+    closeSecretarySearch();
+    navigate(path);
+  };
+
   const showResults = focused && (query.trim().length > 0 || searching);
+  const showQuickLinks = focused && query.trim().length === 0 && !searching;
 
   return (
     <div className="relative w-full bg-transparent">
@@ -137,6 +152,51 @@ export function FooterSearch() {
             </div>
 
             <AnimatePresence>
+              {showQuickLinks && (
+                <motion.div
+                  key="quick"
+                  initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={reduceMotion ? undefined : { opacity: 0, y: 6 }}
+                  transition={{ duration: reduceMotion ? 0 : 0.2, ease: [0.2, 0, 0, 1] }}
+                  className="absolute bottom-full left-0 right-0 z-50 mb-2 rounded-xl border border-white/92 bg-white/96 py-2 backdrop-blur-md"
+                  style={{
+                    boxShadow:
+                      '0 -12px 40px rgba(17,24,39,0.08), 0 0 0 1px rgba(255,255,255,0.95), inset 0 1px 0 0 rgba(255,255,255,1)',
+                  }}
+                >
+                  <div
+                    className="pointer-events-none absolute left-3 right-3 top-0 h-px rounded-full opacity-95"
+                    style={{ background: RAINBOW_LINE }}
+                  />
+                  <p className="px-4 py-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+                    クイックリンク
+                  </p>
+                  <ul className="px-2 pb-1">
+                    {QUICK_LINKS.map((link) => {
+                      const Icon = link.icon;
+                      return (
+                        <li key={link.path}>
+                          <button
+                            type="button"
+                            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-neutral-100"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => goLink(link.path)}
+                          >
+                            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-600">
+                              <Icon size={14} />
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block text-sm font-medium text-neutral-800">{link.label}</span>
+                              <span className="block text-[11px] text-neutral-500">{link.desc}</span>
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </motion.div>
+              )}
               {showResults && (
                 <motion.div
                   initial={reduceMotion ? false : { opacity: 0, y: 8 }}
