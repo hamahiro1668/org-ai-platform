@@ -12,6 +12,7 @@ import { webhookRoutes } from './routes/webhooks';
 import { agentRoutes } from './routes/agents';
 import { llmRoutes } from './routes/llm';
 import { organizationRoutes } from './routes/organizations';
+import { scheduledTaskRoutes } from './routes/scheduled-tasks';
 import { prisma } from './utils/prisma';
 
 const app = Fastify({ logger: true });
@@ -61,6 +62,7 @@ async function start(): Promise<void> {
   await app.register(agentRoutes, { prefix: '/api/agents' });
   await app.register(llmRoutes, { prefix: '/api/llm' });
   await app.register(organizationRoutes, { prefix: '/api/organizations' });
+  await app.register(scheduledTaskRoutes, { prefix: '/api/scheduled-tasks' });
 
   const port = parseInt(process.env.PORT ?? '4000');
   await app.listen({ port, host: '0.0.0.0' });

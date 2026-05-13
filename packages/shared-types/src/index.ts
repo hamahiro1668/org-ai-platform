@@ -21,7 +21,10 @@ export const PLAN_LIMITS: Record<Plan, { aiCallsPerMonth: number; model: string;
   },
 };
 export type UserRole = 'OWNER' | 'MEMBER' | 'VIEWER';
-export type AgentDepartment = 'SALES' | 'MARKETING' | 'ACCOUNTING' | 'GENERAL';
+export type AgentDepartment = 'SALES' | 'MARKETING' | 'ACCOUNTING' | 'ANALYTICS' | 'GENERAL';
+export const AGENT_DEPARTMENTS: AgentDepartment[] = ['SALES', 'MARKETING', 'ACCOUNTING', 'ANALYTICS', 'GENERAL'];
+
+export type ScheduleFrequency = 'daily' | 'weekly' | 'monthly';
 export type TaskStatus = 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED';
 export type RiskSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type RiskType = 'PII_DETECTED' | 'HARMFUL_CONTENT' | 'ANOMALY' | 'COST_ANOMALY';
@@ -109,6 +112,24 @@ export interface RiskEvent {
   severity: RiskSeverity;
   resolved: boolean;
   createdAt: string;
+}
+
+export interface ScheduledTask {
+  id: string;
+  orgId: string;
+  title: string;
+  department: AgentDepartment;
+  taskType: string;
+  input: string;
+  recipientEmail: string | null;
+  frequency: ScheduleFrequency;
+  hourUtc: number;
+  dayOfWeek: number | null;
+  dayOfMonth: number | null;
+  enabled: boolean;
+  lastRunAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface UploadedFile {
