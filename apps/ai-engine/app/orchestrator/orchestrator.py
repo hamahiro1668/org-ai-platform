@@ -43,7 +43,7 @@ class Orchestrator:
         asyncio.create_task(log_llm_call(
             org_id=org_id,
             department=resolved_dept,
-            provider="groq",
+            provider="anthropic",
             model=response.model,
             input_text=user_message,
             output_text=response.content,

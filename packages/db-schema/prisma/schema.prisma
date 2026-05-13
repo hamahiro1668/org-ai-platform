@@ -21,14 +21,15 @@ model User {
 }
 
 model Organization {
-  id        String        @id @default(cuid())
-  name      String
-  plan      String        @default("STARTER")
-  users     User[]
-  sessions  ChatSession[]
-  tasks     Task[]
-  files     UploadedFile[]
-  createdAt DateTime      @default(now())
+  id           String         @id @default(cuid())
+  name         String
+  plan         String         @default("STARTER")
+  billingEmail String?
+  users        User[]
+  sessions     ChatSession[]
+  tasks        Task[]
+  files        UploadedFile[]
+  createdAt    DateTime       @default(now())
 }
 
 model ChatSession {

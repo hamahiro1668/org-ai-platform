@@ -1,4 +1,25 @@
 export type Plan = 'STARTER' | 'PRO' | 'MAX';
+export type PlanTier = Plan;
+
+// プラン別の Claude モデル ID と利用量上限。
+// 全プラン Anthropic Claude を使用し、モデル品質と月間 AI コール数で差別化する。
+export const PLAN_LIMITS: Record<Plan, { aiCallsPerMonth: number; model: string; modelLabel: string }> = {
+  STARTER: {
+    aiCallsPerMonth: 100,
+    model: 'claude-haiku-4-5-20251001',
+    modelLabel: 'Claude Haiku 4.5',
+  },
+  PRO: {
+    aiCallsPerMonth: 1000,
+    model: 'claude-sonnet-4-6',
+    modelLabel: 'Claude Sonnet 4.6',
+  },
+  MAX: {
+    aiCallsPerMonth: 10000,
+    model: 'claude-opus-4-7',
+    modelLabel: 'Claude Opus 4.7',
+  },
+};
 export type UserRole = 'OWNER' | 'MEMBER' | 'VIEWER';
 export type AgentDepartment = 'SALES' | 'MARKETING' | 'ACCOUNTING' | 'GENERAL';
 export type TaskStatus = 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED';
@@ -19,7 +40,14 @@ export interface Organization {
   id: string;
   name: string;
   plan: Plan;
+  billingEmail: string | null;
   createdAt: string;
+}
+
+export interface OrganizationUsage {
+  aiCallsThisMonth: number;
+  planLimit: number;
+  resetAt: string;
 }
 
 export interface ChatSession {

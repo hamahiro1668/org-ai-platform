@@ -44,12 +44,13 @@ async function resolveWorkflowId(): Promise<string | null> {
 }
 
 /** n8n API: ワークフローを実行 (POST /api/v1/workflows/:id/run) */
-async function triggerN8nWorkflow(task: { id: string; orgId: string; title: string; input: string; department: string }) {
+async function triggerN8nWorkflow(task: { id: string; orgId: string; title: string; input: string; department: string; taskType?: string | null }) {
   const workflowId = await resolveWorkflowId();
   if (!workflowId) {
     console.warn('[n8n] workflow id not resolved — skipping trigger');
     return;
   }
+  const org = await prisma.organization.findUnique({ where: { id: task.orgId }, select: { plan: true } });
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (N8N_API_KEY) headers['X-N8N-API-KEY'] = N8N_API_KEY;
@@ -65,6 +66,8 @@ async function triggerN8nWorkflow(task: { id: string; orgId: string; title: stri
           title: task.title,
           input: task.input,
           department: task.department,
+          taskType: task.taskType ?? null,
+          plan: org?.plan ?? 'STARTER',
           callbackUrl: `${process.env.API_GATEWAY_URL ?? 'http://localhost:4000'}/api/webhooks/n8n/task-complete`,
           logUrl: `${process.env.API_GATEWAY_URL ?? 'http://localhost:4000'}/api/webhooks/n8n/task-log`,
           aiEngineUrl: process.env.AI_ENGINE_URL ?? 'http://localhost:8000',
@@ -86,6 +89,7 @@ async function triggerN8nWorkflow(task: { id: string; orgId: string; title: stri
 /** n8n未接続時のフォールバック: AI Engineで直接タスクを実行 */
 async function executeTaskViaAiEngine(task: { id: string; orgId: string; title: string; input: string; department: string }) {
   const aiEngineUrl = process.env.AI_ENGINE_URL ?? 'http://localhost:8000';
+  const org = await prisma.organization.findUnique({ where: { id: task.orgId }, select: { plan: true } });
   try {
     await prisma.taskLog.create({
       data: { taskId: task.id, message: 'AI Engineで直接実行を開始', level: 'INFO' },
@@ -98,7 +102,7 @@ async function executeTaskViaAiEngine(task: { id: string; orgId: string; title: 
         org_id: task.orgId,
         session_id: task.id,
         department: task.department,
-        plan: 'STARTER',
+        plan: org?.plan ?? 'STARTER',
       }),
     });
     if (!res.ok) throw new Error(`AI Engine returned ${res.status}`);

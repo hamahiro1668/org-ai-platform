@@ -34,6 +34,8 @@ async function generateViaN8n(payload: {
   orgId: string;
   sessionId: string;
   history: { role: string; content: string }[];
+  plan: string;
+  aiEngineUrl: string;
 }): Promise<{ content: string; department: string } | null> {
   const workflowId = await resolveChatWorkflowId();
   if (!workflowId) return null;
@@ -169,6 +171,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     });
     const history = recentMessages.reverse().map((m) => ({ role: m.role, content: m.content }));
 
+    const aiEngineUrl = process.env.AI_ENGINE_URL ?? 'http://ai-engine:8000';
     let aiResponse: { content: string; department: string };
     const n8nResult = await generateViaN8n({
       message: result.data.content,
@@ -176,13 +179,14 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       orgId: payload.orgId,
       sessionId: id,
       history,
+      plan,
+      aiEngineUrl,
     });
 
     if (n8nResult) {
       aiResponse = n8nResult;
       console.log('[chat] responded via n8n cloud');
     } else {
-      const aiEngineUrl = process.env.AI_ENGINE_URL ?? 'http://ai-engine:8000';
       try {
         const res = await fetch(`${aiEngineUrl}/orchestrate`, {
           method: 'POST',
@@ -327,12 +331,15 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       console.log('[chat-stream] responded via ai-engine streaming');
     } catch (err) {
       console.error('[chat-stream] ai-engine stream failed, trying n8n fallback:', err);
+      const orgRow = await prisma.organization.findUnique({ where: { id: payload.orgId }, select: { plan: true } });
       const n8nResult = await generateViaN8n({
         message: body.data.content,
         department: body.data.department ?? null,
         orgId: payload.orgId,
         sessionId: id,
         history: [],
+        plan: orgRow?.plan ?? 'STARTER',
+        aiEngineUrl: process.env.AI_ENGINE_URL ?? 'http://ai-engine:8000',
       });
       if (n8nResult) {
         fullContent = n8nResult.content;

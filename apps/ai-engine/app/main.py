@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 from app.models.llm import OrchestateRequest, OrchestrateResponse, LLMRequest, LLMResponse, ChatMessage
 from app.orchestrator.orchestrator import orchestrator
 from app.orchestrator.intent_classifier import classify_intent
-from app.llm.router import llm_router
+from app.llm.router import llm_router, _resolve_model
 from app.governance.audit_logger import log_llm_call
 from app.governance.pii_screener import screen
 
@@ -29,7 +29,22 @@ app.add_middleware(
 
 @app.get("/health")
 async def health() -> dict:
-    return {"status": "ok", "version": "1.0.0", "timestamp": __import__("datetime").datetime.utcnow().isoformat()}
+    return {
+        "status": "ok",
+        "service": "ai-engine",
+        "version": "1.0.0",
+        "timestamp": __import__("datetime").datetime.utcnow().isoformat(),
+    }
+
+
+@app.get("/ready")
+async def ready() -> dict:
+    has_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    return {
+        "status": "ok" if has_key else "degraded",
+        "anthropic": has_key,
+        "timestamp": __import__("datetime").datetime.utcnow().isoformat(),
+    }
 
 
 @app.post("/orchestrate", response_model=OrchestrateResponse)
@@ -43,7 +58,7 @@ async def orchestrate(request: OrchestateRequest) -> OrchestrateResponse:
         )
     except RuntimeError as e:
         msg = str(e)
-        if "GROQ_API_KEY" in msg:
+        if "ANTHROPIC_API_KEY" in msg:
             raise HTTPException(status_code=503, detail=msg) from e
         raise
 
@@ -103,8 +118,8 @@ async def orchestrate_stream(request: OrchestateRequest) -> StreamingResponse:
             asyncio.create_task(log_llm_call(
                 org_id=request.org_id,
                 department=resolved_dept,
-                provider="groq",
-                model="llama-3.3-70b-versatile",
+                provider="anthropic",
+                model=_resolve_model(request.plan),
                 input_text=request.message,
                 output_text=full_content,
                 tokens=None,

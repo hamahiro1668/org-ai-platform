@@ -49,13 +49,20 @@ const TYPE_LABEL: Record<string, string> = {
   data_visualization: 'データ可視化',
 };
 
+const DRAFT_BADGE = (
+  <span className="inline-flex items-center text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+    下書き・自動送信されません
+  </span>
+);
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function DeliverablePreview({ data }: { data: any }) {
+export function DeliverablePreview({ data }: { data: any }) {
   const taskType = data?.taskType;
   switch (taskType) {
     case 'email':
       return (
         <div className="text-[11px] text-[#8A8A8A] space-y-0.5">
+          <div className="mb-1">{DRAFT_BADGE}</div>
           <p><span className="text-[#BCBCBC]">To:</span> {data.to}</p>
           <p><span className="text-[#BCBCBC]">件名:</span> {data.subject}</p>
           <p className="line-clamp-2">{data.body?.slice(0, 100)}</p>
@@ -64,6 +71,7 @@ function DeliverablePreview({ data }: { data: any }) {
     case 'sns':
       return (
         <div className="text-[11px] text-[#8A8A8A]">
+          <div className="mb-1">{DRAFT_BADGE}</div>
           <p className="line-clamp-3">{data.content?.slice(0, 150)}</p>
           {data.hashtags?.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1">

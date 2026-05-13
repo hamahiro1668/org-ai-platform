@@ -15,9 +15,10 @@ import { AnalyticsPanel } from '../taskmanager/components/panels/AnalyticsPanel'
 import { SNSPanel } from '../taskmanager/components/panels/SNSPanel';
 import ProjectResultsPanel from '../taskmanager/components/panels/ProjectResultsPanel';
 import TaskDashboardStats from '../components/TaskManager/TaskDashboardStats';
-import PastDeliverablesSection from '../components/TaskManager/PastDeliverablesSection';
+import PastDeliverablesSection, { DeliverablePreview } from '../components/TaskManager/PastDeliverablesSection';
 import { api } from '../services/api';
 import { humanizeTaskManagerError } from '../utils/humanizeLlmError';
+import { parseOutputJson } from '../utils/parseTaskOutput';
 import type { Task } from '../taskmanager/types/index';
 
 async function queueTaskOnBackend(task: Task): Promise<string | null> {
@@ -48,6 +49,7 @@ interface BackendTask {
   title: string;
   status: string;
   department: string;
+  taskType: string | null;
   output: string | null;
   createdAt: string;
   logs: { id: string; message: string; level: string; createdAt: string }[];
@@ -294,11 +296,22 @@ export default function TaskManagerPage() {
                       exit={{ height: 0, opacity: 0 }}
                       className="overflow-hidden"
                     >
-                      {bt.output && (
-                        <div className="mt-2 p-2 bg-gray-50 rounded-xl text-xs text-[#2D2D2D] whitespace-pre-wrap max-h-40 overflow-y-auto">
-                          {bt.output.slice(0, 500)}{bt.output.length > 500 ? '...' : ''}
-                        </div>
-                      )}
+                      {bt.output && (() => {
+                        const parsed = parseOutputJson(bt.output);
+                        if (parsed && (parsed.taskType || bt.taskType)) {
+                          const data = parsed.taskType ? parsed : { ...parsed, taskType: bt.taskType };
+                          return (
+                            <div className="mt-2 p-2 bg-gray-50 rounded-xl">
+                              <DeliverablePreview data={data} />
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="mt-2 p-2 bg-gray-50 rounded-xl text-xs text-[#2D2D2D] whitespace-pre-wrap max-h-40 overflow-y-auto">
+                            {bt.output.slice(0, 500)}{bt.output.length > 500 ? '...' : ''}
+                          </div>
+                        );
+                      })()}
                       {bt.logs.length > 0 && (
                         <div className="mt-2 space-y-1">
                           {bt.logs.slice(-5).map((log) => (

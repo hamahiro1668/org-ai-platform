@@ -37,7 +37,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// 部署とタスクタイプに応じてGPT-4oへのプロンプトを構築\nconst dept = $('Execute Workflow Trigger').item.json.runData.department;\nconst input = $('Execute Workflow Trigger').item.json.runData.input;\nconst docType = $('Execute Workflow Trigger').item.json.runData.docType ?? 'auto';\n\nconst deptContext = {\n  SALES: '営業部門向け。顧客提案・見積もり・営業メールを専門とする。',\n  MARKETING: 'マーケティング部門向け。SNS・広告・キャンペーン・ブランディングを専門とする。',\n  ACCOUNTING: '経理部門向け。財務分析・予算・請求書・経費管理を専門とする。',\n  GENERAL: '汎用ビジネス向け。'\n};\n\n// 成果物タイプ別プロンプト\nconst outputPrompts = {\n  spreadsheet: `以下の依頼に対して、スプレッドシートのデータを作成してください。\nJSON形式で { \"title\": \"タイトル\", \"headers\": [\"列名1\", \"列名2\", ...], \"rows\": [[値1, 値2, ...], ...] } として返してください。`,\n  document: `以下の依頼に対して、ドキュメントの内容を作成してください。\nJSON形式で { \"title\": \"タイトル\", \"content\": \"本文（マークダウン形式）\" } として返してください。`,\n  slides: `以下の依頼に対して、プレゼンテーションのスライド構成を作成してください。\nJSON形式で { \"title\": \"タイトル\", \"slides\": [{ \"title\": \"スライドタイトル\", \"content\": \"内容\", \"notes\": \"発表メモ\" }] } として返してください。`,\n  auto: `以下の依頼の内容に最適な成果物を生成してください。\nスプレッドシート（数値・リスト中心）、ドキュメント（文章・報告書）、スライド（プレゼン）のいずれかを選び、\nJSON形式で { \"outputType\": \"spreadsheet|document|slides\", \"data\": { ... } } として返してください。`\n};\n\nconst systemPrompt = `あなたは${deptContext[dept] ?? deptContext.GENERAL}のビジネス文書作成の専門家です。\n${outputPrompts[docType] ?? outputPrompts.auto}\n\n必ず有効なJSONのみを返し、説明文は含めないでください。`;\n\nreturn [{ json: { systemPrompt, userInput: input, docType, department: dept } }];"
+        "jsCode": "// 部署とタスクタイプに応じて Claude へのプロンプトを構築\nconst rd = $('Execute Workflow Trigger').item.json.runData;\nconst dept = rd.department;\nconst input = rd.input;\nconst docType = rd.docType ?? 'auto';\nconst plan = rd.plan ?? 'STARTER';\nconst aiEngineUrl = rd.aiEngineUrl ?? 'http://ai-engine:8000';\nconst orgId = rd.orgId;\n\nconst deptContext = {\n  SALES: '営業部門向け。顧客提案・見積もり・営業メールを専門とする。',\n  MARKETING: 'マーケティング部門向け。SNS・広告・キャンペーン・ブランディングを専門とする。',\n  ACCOUNTING: '経理部門向け。財務分析・予算・請求書・経費管理を専門とする。',\n  GENERAL: '汎用ビジネス向け。'\n};\n\nconst outputPrompts = {\n  spreadsheet: `以下の依頼に対して、スプレッドシートのデータを作成してください。\nJSON形式で { \"title\": \"タイトル\", \"headers\": [\"列名1\", \"列名2\", ...], \"rows\": [[値1, 値2, ...], ...] } として返してください。`,\n  document: `以下の依頼に対して、ドキュメントの内容を作成してください。\nJSON形式で { \"title\": \"タイトル\", \"content\": \"本文（マークダウン形式）\" } として返してください。`,\n  slides: `以下の依頼に対して、プレゼンテーションのスライド構成を作成してください。\nJSON形式で { \"title\": \"タイトル\", \"slides\": [{ \"title\": \"スライドタイトル\", \"content\": \"内容\", \"notes\": \"発表メモ\" }] } として返してください。`,\n  auto: `以下の依頼の内容に最適な成果物を生成してください。\nスプレッドシート（数値・リスト中心）、ドキュメント（文章・報告書）、スライド（プレゼン）のいずれかを選び、\nJSON形式で { \"outputType\": \"spreadsheet|document|slides\", \"data\": { ... } } として返してください。`\n};\n\nconst systemPrompt = `あなたは${deptContext[dept] ?? deptContext.GENERAL}のビジネス文書作成の専門家です。\n${outputPrompts[docType] ?? outputPrompts.auto}\n\n必ず有効なJSONのみを返し、説明文は含めないでください。`;\n\nconst messages = [\n  { role: 'system', content: systemPrompt },\n  { role: 'user', content: input }\n];\n\nreturn [{ json: { messages, docType, department: dept, plan, aiEngineUrl, org_id: orgId } }];"
       },
       "id": "build-doc-prompt",
       "name": "Build Doc Prompt",
@@ -47,40 +47,29 @@
     },
     {
       "parameters": {
-        "resource": "chat",
-        "model": "gpt-4o",
-        "messages": {
-          "values": [
-            {
-              "role": "system",
-              "content": "={{ $json.systemPrompt }}"
-            },
-            {
-              "role": "user",
-              "content": "={{ $json.userInput }}"
-            }
+        "method": "POST",
+        "url": "={{ $json.aiEngineUrl }}/llm/chat",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
           ]
         },
-        "options": {
-          "maxTokens": 4000,
-          "temperature": 0.3,
-          "responseFormat": "json_object"
-        }
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ messages: $json.messages, department: $json.department, org_id: $json.org_id, plan: $json.plan, json_mode: true }) }}",
+        "options": {}
       },
-      "id": "gpt4o-generate",
-      "name": "GPT-4o Generate",
-      "type": "@n8n/n8n-nodes-langchain.openAi",
-      "typeVersion": 1,
-      "position": [900, 300],
-      "credentials": {
-        "openAiApi": {
-          "name": "OpenAI API"
-        }
-      }
+      "id": "ai-engine-chat",
+      "name": "AI Engine Chat",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 300]
     },
     {
       "parameters": {
-        "jsCode": "// GPT-4oの出力をパース\nconst rawContent = $input.item.json.message?.content ?? $input.item.json.choices?.[0]?.message?.content ?? '{}';\nlet parsed;\ntry {\n  parsed = JSON.parse(rawContent);\n} catch {\n  parsed = { outputType: 'document', data: { title: 'エラー', content: rawContent } };\n}\n\n// outputType の正規化\nlet outputType = parsed.outputType;\nif (!outputType) {\n  if (parsed.headers) outputType = 'spreadsheet';\n  else if (parsed.slides) outputType = 'slides';\n  else outputType = 'document';\n}\n\nconst department = $('Build Doc Prompt').item.json.department;\nconst taskId = $('Execute Workflow Trigger').item.json.runData.taskId;\nconst logUrl = $('Execute Workflow Trigger').item.json.runData.logUrl;\nconst callbackUrl = $('Execute Workflow Trigger').item.json.runData.callbackUrl;\n\nreturn [{ json: { outputType, data: parsed.data ?? parsed, department, taskId, logUrl, callbackUrl } }];"
+        "jsCode": "// AI Engine /llm/chat の応答（LLMResponse）を JSON パース\nconst rawContent = $input.item.json.content ?? '{}';\nlet parsed;\ntry {\n  parsed = JSON.parse(rawContent);\n} catch {\n  parsed = { outputType: 'document', data: { title: 'エラー', content: rawContent } };\n}\n\nlet outputType = parsed.outputType;\nif (!outputType) {\n  if (parsed.headers) outputType = 'spreadsheet';\n  else if (parsed.slides) outputType = 'slides';\n  else outputType = 'document';\n}\n\nconst department = $('Build Doc Prompt').item.json.department;\nconst taskId = $('Execute Workflow Trigger').item.json.runData.taskId;\nconst logUrl = $('Execute Workflow Trigger').item.json.runData.logUrl;\nconst callbackUrl = $('Execute Workflow Trigger').item.json.runData.callbackUrl;\n\nreturn [{ json: { outputType, data: parsed.data ?? parsed, department, taskId, logUrl, callbackUrl } }];"
       },
       "id": "parse-output",
       "name": "Parse Output",
@@ -267,10 +256,10 @@
     },
     "Build Doc Prompt": {
       "main": [
-        [{ "node": "GPT-4o Generate", "type": "main", "index": 0 }]
+        [{ "node": "AI Engine Chat", "type": "main", "index": 0 }]
       ]
     },
-    "GPT-4o Generate": {
+    "AI Engine Chat": {
       "main": [
         [{ "node": "Parse Output", "type": "main", "index": 0 }]
       ]

@@ -11,6 +11,8 @@ import { taskRoutes } from './routes/tasks';
 import { webhookRoutes } from './routes/webhooks';
 import { agentRoutes } from './routes/agents';
 import { llmRoutes } from './routes/llm';
+import { organizationRoutes } from './routes/organizations';
+import { prisma } from './utils/prisma';
 
 const app = Fastify({ logger: true });
 
@@ -32,9 +34,23 @@ async function start(): Promise<void> {
 
   app.get('/health', async () => ({
     status: 'ok',
+    service: 'api-gateway',
     version: '1.0.0',
     timestamp: new Date().toISOString(),
   }));
+
+  app.get('/ready', async (_request, reply) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      return { status: 'ok', db: 'connected', timestamp: new Date().toISOString() };
+    } catch (e) {
+      return reply.code(503).send({
+        status: 'error',
+        db: 'disconnected',
+        message: e instanceof Error ? e.message : String(e),
+      });
+    }
+  });
 
   await app.register(authRoutes, { prefix: '/api/auth' });
   await app.register(chatRoutes, { prefix: '/api/chat' });
@@ -44,6 +60,7 @@ async function start(): Promise<void> {
   await app.register(webhookRoutes, { prefix: '/api/webhooks' });
   await app.register(agentRoutes, { prefix: '/api/agents' });
   await app.register(llmRoutes, { prefix: '/api/llm' });
+  await app.register(organizationRoutes, { prefix: '/api/organizations' });
 
   const port = parseInt(process.env.PORT ?? '4000');
   await app.listen({ port, host: '0.0.0.0' });

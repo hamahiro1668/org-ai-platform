@@ -12,7 +12,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
-import type { User, UploadedFile } from '@org-ai/shared-types';
+import type { User, UploadedFile, Plan, OrganizationUsage, PlanTier } from '@org-ai/shared-types';
+import { PLAN_LIMITS } from '@org-ai/shared-types';
 import {
   GlassCard,
   GlassBadge,
@@ -21,8 +22,18 @@ import {
   EmptyState,
   SkeletonList,
 } from '../components/ui';
+import UsageCard from '../components/Settings/UsageCard';
 
-const PLAN_TONE: Record<string, { label: string; tone: string }> = {
+interface OrganizationView {
+  id: string;
+  name: string;
+  plan: PlanTier;
+  billingEmail: string | null;
+  createdAt: string;
+  memberCount: number;
+}
+
+const PLAN_TONE: Record<Plan, { label: string; tone: string }> = {
   STARTER: { label: 'Starter', tone: 'muted' },
   PRO: { label: 'Pro', tone: 'accent' },
   MAX: { label: 'Max', tone: 'warning' },
@@ -43,6 +54,23 @@ export default function SettingsPage() {
       const res = await api.get<{ success: boolean; data: User }>('/auth/me');
       return res.data.data;
     },
+  });
+
+  const { data: organization } = useQuery({
+    queryKey: ['organization-me'],
+    queryFn: async () => {
+      const res = await api.get<{ success: boolean; data: OrganizationView }>('/organizations/me');
+      return res.data.data;
+    },
+  });
+
+  const { data: usage } = useQuery({
+    queryKey: ['organization-usage'],
+    queryFn: async () => {
+      const res = await api.get<{ success: boolean; data: OrganizationUsage }>('/organizations/me/usage');
+      return res.data.data;
+    },
+    enabled: !!organization,
   });
 
   const { data: files, isLoading: filesLoading } = useQuery({
@@ -85,7 +113,9 @@ export default function SettingsPage() {
   };
 
   const user = me ?? storedUser;
-  const plan = PLAN_TONE.STARTER;
+  const planKey: Plan = organization?.plan ?? 'STARTER';
+  const plan = PLAN_TONE[planKey];
+  const modelLabel = PLAN_LIMITS[planKey].modelLabel;
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -119,17 +149,23 @@ export default function SettingsPage() {
           <h3 className="text-sm font-semibold text-primary">組織</h3>
         </div>
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-          <Field label="組織ID" value={user?.orgId ?? '—'} mono />
+          <Field label="組織名" value={organization?.name ?? '—'} />
+          <Field label="組織ID" value={organization?.id ?? user?.orgId ?? '—'} mono />
+          <Field label="メンバー数" value={organization?.memberCount?.toString() ?? '—'} />
+          <Field label="請求先メール" value={organization?.billingEmail ?? '—'} />
           <div>
             <dt className="text-xs text-muted mb-1">プラン</dt>
-            <dd>
+            <dd className="flex items-center gap-2">
               <GlassBadge tone={plan.tone} variant="soft" size="sm">
                 {plan.label}
               </GlassBadge>
+              <span className="text-xs text-muted">{modelLabel}</span>
             </dd>
           </div>
         </dl>
       </GlassCard>
+
+      {usage && <UsageCard usage={usage} modelLabel={modelLabel} />}
 
       <GlassCard variant="thin" padding="lg" radius="2xl" className="mb-5">
         <div className="flex items-center gap-2 mb-4">

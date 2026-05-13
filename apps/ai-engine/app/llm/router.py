@@ -3,31 +3,48 @@ import logging
 from typing import AsyncIterator, List, Tuple
 from app.models.llm import ChatMessage, LLMResponse
 from app.governance.pii_screener import screen
-from app.llm.providers.groq import GroqProvider
+from app.llm.providers.anthropic_provider import (
+    AnthropicProvider,
+    MODEL_HAIKU,
+    MODEL_SONNET,
+    MODEL_OPUS,
+)
 
 logger = logging.getLogger(__name__)
 
-_groq = GroqProvider()
+# プラン → Claude モデル ID
+_PLAN_MODEL = {
+    "STARTER": MODEL_HAIKU,
+    "PRO": MODEL_SONNET,
+    "MAX": MODEL_OPUS,
+}
 
-# Lazy-load expensive providers
-_openai = None
-_anthropic = None
-
-
-def _get_openai():
-    global _openai
-    if _openai is None:
-        from app.llm.providers.openai_provider import OpenAIProvider
-        _openai = OpenAIProvider()
-    return _openai
+_anthropic: AnthropicProvider | None = None
 
 
-def _get_anthropic():
+def _get_anthropic() -> AnthropicProvider:
     global _anthropic
     if _anthropic is None:
-        from app.llm.providers.anthropic_provider import AnthropicProvider
         _anthropic = AnthropicProvider()
     return _anthropic
+
+
+def _resolve_model(plan: str) -> str:
+    return _PLAN_MODEL.get(plan, MODEL_HAIKU)
+
+
+def _screen_user_messages(messages: List[ChatMessage]) -> Tuple[List[ChatMessage], bool, List[str]]:
+    pii_detected = False
+    pii_types: List[str] = []
+    screened = list(messages)
+    for i, msg in enumerate(screened):
+        if msg.role == "user":
+            result = screen(msg.content)
+            if result.detected:
+                pii_detected = True
+                pii_types.extend(result.types)
+                screened[i] = ChatMessage(role=msg.role, content=result.text)
+    return screened, pii_detected, pii_types
 
 
 class LLMRouter:
@@ -39,42 +56,11 @@ class LLMRouter:
         plan: str = "STARTER",
         json_mode: bool = False,
     ) -> Tuple[LLMResponse, bool, List[str]]:
-        pii_detected = False
-        pii_types: List[str] = []
-        screened_messages = list(messages)
-        for i, msg in enumerate(screened_messages):
-            if msg.role == "user":
-                result = screen(msg.content)
-                if result.detected:
-                    pii_detected = True
-                    pii_types.extend(result.types)
-                    screened_messages[i] = ChatMessage(role=msg.role, content=result.text)
-
-        # Plan-based routing:
-        #   STARTER (Free)  -> Groq (Llama)
-        #   PRO             -> OpenAI (GPT-4o)
-        #   MAX             -> Anthropic (Claude)
-        response: LLMResponse
-        if plan == "MAX":
-            try:
-                provider = _get_anthropic()
-                response = await provider.chat(screened_messages)
-                logger.info(f"[LLMRouter] plan=MAX -> Anthropic ({response.model})")
-            except Exception as e:
-                logger.warning(f"[LLMRouter] Anthropic failed, falling back to Groq: {e}")
-                response = await _groq.chat(screened_messages, json_mode=json_mode)
-        elif plan == "PRO":
-            try:
-                provider = _get_openai()
-                response = await provider.chat(screened_messages)
-                logger.info(f"[LLMRouter] plan=PRO -> OpenAI ({response.model})")
-            except Exception as e:
-                logger.warning(f"[LLMRouter] OpenAI failed, falling back to Groq: {e}")
-                response = await _groq.chat(screened_messages, json_mode=json_mode)
-        else:
-            response = await _groq.chat(screened_messages, json_mode=json_mode)
-            logger.info(f"[LLMRouter] plan=STARTER -> Groq ({response.model})")
-
+        screened_messages, pii_detected, pii_types = _screen_user_messages(messages)
+        model = _resolve_model(plan)
+        provider = _get_anthropic()
+        response = await provider.chat(screened_messages, model=model, json_mode=json_mode)
+        logger.info(f"[LLMRouter] plan={plan} -> Anthropic ({response.model})")
         response.pii_detected = pii_detected
         return response, pii_detected, pii_types
 
@@ -85,16 +71,11 @@ class LLMRouter:
         org_id: str,
         plan: str = "STARTER",
     ) -> AsyncIterator[str]:
-        """Stream tokens with PII screening applied to user messages."""
-        screened_messages = list(messages)
-        for i, msg in enumerate(screened_messages):
-            if msg.role == "user":
-                result = screen(msg.content)
-                if result.detected:
-                    screened_messages[i] = ChatMessage(role=msg.role, content=result.text)
-
-        # Streaming は Groq のみ対応（デモ向け）
-        async for token in _groq.chat_stream(screened_messages):
+        """Stream tokens via Anthropic with PII screening applied to user messages."""
+        screened_messages, _, _ = _screen_user_messages(messages)
+        model = _resolve_model(plan)
+        provider = _get_anthropic()
+        async for token in provider.chat_stream(screened_messages, model=model):
             yield token
 
 
