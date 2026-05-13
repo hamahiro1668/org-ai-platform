@@ -2,129 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../utils/prisma';
 import { requireAuth } from '../middleware/auth';
-
-// N8N_CLOUD_URL が設定されていればクラウドを優先
-const N8N_URL = process.env.N8N_CLOUD_URL ?? process.env.N8N_URL ?? 'http://localhost:5678';
-const N8N_API_KEY = process.env.N8N_API_KEY ?? '';
-const N8N_WORKFLOW_NAME = 'org-ai Task Execute';
-// ローカルn8n用のワークフローIDを直接指定（API認証不要でフォールバック）
-const N8N_WORKFLOW_ID = process.env.N8N_WORKFLOW_ID ?? '';
-
-// n8n APIでワークフローIDをキャッシュ
-let cachedWorkflowId: string | null = null;
-
-/** n8n API: ワークフロー名でIDを検索 */
-async function resolveWorkflowId(): Promise<string | null> {
-  if (cachedWorkflowId) return cachedWorkflowId;
-
-  // 環境変数で直接指定されている場合はAPIコール不要
-  if (N8N_WORKFLOW_ID) {
-    cachedWorkflowId = N8N_WORKFLOW_ID;
-    console.log(`[n8n] using workflow id from env: ${N8N_WORKFLOW_ID}`);
-    return cachedWorkflowId;
-  }
-
-  if (!N8N_API_KEY) return null;
-  try {
-    const res = await fetch(`${N8N_URL}/api/v1/workflows`, {
-      headers: { 'X-N8N-API-KEY': N8N_API_KEY },
-    });
-    if (!res.ok) return null;
-    const json = await res.json() as { data: { id: string; name: string; active: boolean }[] };
-    const wf = json.data.find((w) => w.name === N8N_WORKFLOW_NAME);
-    if (wf) {
-      cachedWorkflowId = wf.id;
-      console.log(`[n8n] resolved workflow "${N8N_WORKFLOW_NAME}" → id=${wf.id}`);
-    }
-    return cachedWorkflowId;
-  } catch (e) {
-    console.error('[n8n] resolveWorkflowId failed:', e);
-    return null;
-  }
-}
-
-/** n8n API: ワークフローを実行 (POST /api/v1/workflows/:id/run) */
-async function triggerN8nWorkflow(task: { id: string; orgId: string; title: string; input: string; department: string; taskType?: string | null }) {
-  const workflowId = await resolveWorkflowId();
-  if (!workflowId) {
-    console.warn('[n8n] workflow id not resolved — skipping trigger');
-    return;
-  }
-  const org = await prisma.organization.findUnique({ where: { id: task.orgId }, select: { plan: true } });
-  try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (N8N_API_KEY) headers['X-N8N-API-KEY'] = N8N_API_KEY;
-    const res = await fetch(`${N8N_URL}/api/v1/workflows/${workflowId}/run`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        // n8n の "When Executed by Another Workflow" / Manual run に渡すデータ
-        startNodes: [],
-        runData: {
-          taskId: task.id,
-          orgId: task.orgId,
-          title: task.title,
-          input: task.input,
-          department: task.department,
-          taskType: task.taskType ?? null,
-          plan: org?.plan ?? 'STARTER',
-          callbackUrl: `${process.env.API_GATEWAY_URL ?? 'http://localhost:4000'}/api/webhooks/n8n/task-complete`,
-          logUrl: `${process.env.API_GATEWAY_URL ?? 'http://localhost:4000'}/api/webhooks/n8n/task-log`,
-          aiEngineUrl: process.env.AI_ENGINE_URL ?? 'http://localhost:8000',
-        },
-      }),
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      console.error(`[n8n] run failed: ${res.status} ${body}`);
-    } else {
-      const json = await res.json() as { data: { executionId: string } };
-      console.log(`[n8n] workflow started, executionId=${json.data?.executionId}`);
-    }
-  } catch (e) {
-    console.error('[n8n] trigger failed:', e);
-  }
-}
-
-/** n8n未接続時のフォールバック: AI Engineで直接タスクを実行 */
-async function executeTaskViaAiEngine(task: { id: string; orgId: string; title: string; input: string; department: string }) {
-  const aiEngineUrl = process.env.AI_ENGINE_URL ?? 'http://localhost:8000';
-  const org = await prisma.organization.findUnique({ where: { id: task.orgId }, select: { plan: true } });
-  try {
-    await prisma.taskLog.create({
-      data: { taskId: task.id, message: 'AI Engineで直接実行を開始', level: 'INFO' },
-    });
-    const res = await fetch(`${aiEngineUrl}/orchestrate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: task.input,
-        org_id: task.orgId,
-        session_id: task.id,
-        department: task.department,
-        plan: org?.plan ?? 'STARTER',
-      }),
-    });
-    if (!res.ok) throw new Error(`AI Engine returned ${res.status}`);
-    const result = await res.json() as { content: string; department: string };
-    await prisma.task.update({
-      where: { id: task.id },
-      data: { status: 'DONE', output: result.content, executedAt: new Date() },
-    });
-    await prisma.taskLog.create({
-      data: { taskId: task.id, message: 'AI Engineで実行完了', level: 'INFO' },
-    });
-  } catch (e) {
-    console.error('[ai-engine-fallback] failed:', e);
-    await prisma.task.update({
-      where: { id: task.id },
-      data: { status: 'FAILED', lastError: String(e) },
-    });
-    await prisma.taskLog.create({
-      data: { taskId: task.id, message: `実行失敗: ${String(e)}`, level: 'ERROR' },
-    });
-  }
-}
+import { dispatchQueuedTask } from '../services/task-executor';
 
 const createTaskSchema = z.object({
   title: z.string().min(1).max(200),
@@ -203,12 +81,7 @@ export async function taskRoutes(app: FastifyInstance): Promise<void> {
 
     // QUEUED状態で作成された場合、n8n or AI Engineで実行
     if (task.status === 'QUEUED') {
-      const workflowId = await resolveWorkflowId();
-      if (workflowId) {
-        triggerN8nWorkflow(task);
-      } else {
-        executeTaskViaAiEngine(task);
-      }
+      void dispatchQueuedTask(task);
     }
 
     return reply.code(201).send({ success: true, data: task });
@@ -240,12 +113,7 @@ export async function taskRoutes(app: FastifyInstance): Promise<void> {
       });
       // QUEUED になったら n8n or AI Engine で実行
       if (result.data.status === 'QUEUED') {
-        const workflowId = await resolveWorkflowId();
-        if (workflowId) {
-          triggerN8nWorkflow(updated);
-        } else {
-          executeTaskViaAiEngine(updated);
-        }
+        void dispatchQueuedTask(updated);
       }
     }
 
@@ -278,12 +146,7 @@ export async function taskRoutes(app: FastifyInstance): Promise<void> {
     });
 
     // n8n or AI Engine で実行
-    const workflowId = await resolveWorkflowId();
-    if (workflowId) {
-      triggerN8nWorkflow(updated);
-    } else {
-      executeTaskViaAiEngine(updated);
-    }
+    void dispatchQueuedTask(updated);
 
     return reply.send({ success: true, data: updated });
   });

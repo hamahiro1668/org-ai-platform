@@ -21,15 +21,16 @@ model User {
 }
 
 model Organization {
-  id           String         @id @default(cuid())
-  name         String
-  plan         String         @default("STARTER")
-  billingEmail String?
-  users        User[]
-  sessions     ChatSession[]
-  tasks        Task[]
-  files        UploadedFile[]
-  createdAt    DateTime       @default(now())
+  id             String          @id @default(cuid())
+  name           String
+  plan           String          @default("STARTER")
+  billingEmail   String?
+  users          User[]
+  sessions       ChatSession[]
+  tasks          Task[]
+  files          UploadedFile[]
+  scheduledTasks ScheduledTask[]
+  createdAt      DateTime        @default(now())
 }
 
 model ChatSession {
@@ -116,4 +117,25 @@ model UploadedFile {
   mimeType     String
   sizeBytes    Int
   createdAt    DateTime     @default(now())
+}
+
+model ScheduledTask {
+  id             String       @id @default(cuid())
+  orgId          String
+  org            Organization @relation(fields: [orgId], references: [id])
+  title          String
+  department     String
+  taskType       String
+  input          String
+  recipientEmail String?
+  frequency      String
+  hourUtc        Int
+  dayOfWeek      Int?
+  dayOfMonth     Int?
+  enabled        Boolean      @default(true)
+  lastRunAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([orgId, enabled])
 }

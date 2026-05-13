@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../utils/prisma';
+import { dispatchQueuedTask } from '../services/task-executor';
 
 const WEBHOOK_AUTH_TOKEN = process.env.N8N_WEBHOOK_AUTH_TOKEN ?? 'org-ai-n8n-secret-token';
 
@@ -100,5 +101,116 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
     });
 
     return reply.send({ success: true, data: tasks });
+  });
+
+  // 定期実行ジョブ一覧（n8n schedule-dispatcher 用）
+  // 現在の UTC 時刻 (hour 単位) と一致する有効なジョブを返す
+  app.get('/n8n/scheduled-jobs', async (request, reply) => {
+    const authToken = request.headers['x-webhook-token'];
+    if (authToken !== WEBHOOK_AUTH_TOKEN) {
+      return reply.code(401).send({ success: false, error: { code: 'UNAUTHORIZED', message: '認証トークンが無効です' } });
+    }
+
+    const now = new Date();
+    const currentHourUtc = now.getUTCHours();
+    const currentDayOfWeek = now.getUTCDay();
+    const currentDayOfMonth = now.getUTCDate();
+
+    const candidates = await prisma.scheduledTask.findMany({
+      where: { enabled: true, hourUtc: currentHourUtc },
+      include: { org: { select: { plan: true, billingEmail: true } } },
+    });
+
+    const jobs = candidates.filter((s) => {
+      if (s.frequency === 'daily') return true;
+      if (s.frequency === 'weekly') return s.dayOfWeek === currentDayOfWeek;
+      if (s.frequency === 'monthly') return s.dayOfMonth === currentDayOfMonth;
+      return false;
+    });
+
+    return reply.send({
+      success: true,
+      data: jobs.map((s) => ({
+        id: s.id,
+        orgId: s.orgId,
+        title: s.title,
+        department: s.department,
+        taskType: s.taskType,
+        input: s.input,
+        recipientEmail: s.recipientEmail ?? s.org.billingEmail ?? null,
+        plan: s.org.plan,
+        callbackUrl: `${process.env.API_GATEWAY_URL ?? 'http://localhost:4000'}/api/webhooks/n8n/scheduled-job-complete`,
+        aiEngineUrl: process.env.AI_ENGINE_URL ?? 'http://localhost:8000',
+      })),
+    });
+  });
+
+  // 定期ジョブを Task として enqueue（n8n schedule-dispatcher が呼ぶ）
+  app.post('/n8n/enqueue-scheduled-task', async (request, reply) => {
+    const authToken = request.headers['x-webhook-token'];
+    if (authToken !== WEBHOOK_AUTH_TOKEN) {
+      return reply.code(401).send({ success: false, error: { code: 'UNAUTHORIZED', message: '認証トークンが無効です' } });
+    }
+    const schema = z.object({ scheduledTaskId: z.string() });
+    const result = schema.safeParse(request.body);
+    if (!result.success) {
+      return reply.code(400).send({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: result.error.message },
+      });
+    }
+    const st = await prisma.scheduledTask.findUnique({ where: { id: result.data.scheduledTaskId } });
+    if (!st || !st.enabled) {
+      return reply.code(404).send({
+        success: false,
+        error: { code: 'NOT_FOUND', message: '有効な定期タスクが見つかりません' },
+      });
+    }
+    // Task 作成（QUEUED で作成 → n8n が自動発火）
+    const task = await prisma.task.create({
+      data: {
+        orgId: st.orgId,
+        title: `[定期] ${st.title}`,
+        department: st.department,
+        input: st.input,
+        status: 'QUEUED',
+        taskType: st.taskType,
+      },
+    });
+    await prisma.taskLog.create({
+      data: { taskId: task.id, message: `定期実行から起動 (scheduledTaskId=${st.id})`, level: 'INFO' },
+    });
+    await prisma.scheduledTask.update({
+      where: { id: st.id },
+      data: { lastRunAt: new Date() },
+    });
+    // n8n もしくは AI Engine で実行
+    void dispatchQueuedTask(task);
+    return reply.send({ success: true, data: { taskId: task.id, scheduledTaskId: st.id } });
+  });
+
+  // 定期ジョブ実行完了の callback（lastRunAt を更新）
+  app.post('/n8n/scheduled-job-complete', async (request, reply) => {
+    const authToken = request.headers['x-webhook-token'];
+    if (authToken !== WEBHOOK_AUTH_TOKEN) {
+      return reply.code(401).send({ success: false, error: { code: 'UNAUTHORIZED', message: '認証トークンが無効です' } });
+    }
+    const schema = z.object({
+      scheduledTaskId: z.string(),
+      status: z.enum(['DONE', 'FAILED']),
+      error: z.string().optional(),
+    });
+    const result = schema.safeParse(request.body);
+    if (!result.success) {
+      return reply.code(400).send({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: result.error.message },
+      });
+    }
+    const updated = await prisma.scheduledTask.update({
+      where: { id: result.data.scheduledTaskId },
+      data: { lastRunAt: new Date() },
+    });
+    return reply.send({ success: true, data: updated });
   });
 }
