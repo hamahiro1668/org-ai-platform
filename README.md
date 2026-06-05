@@ -2,6 +2,12 @@
 
 中小企業向けの組織型AIエージェント基盤。社長が指示を出すと、営業部・マーケ部・経理部の各AIが分担・実行する。
 
+## スクリーンショット
+
+| ログイン (Glass UI) | 社長ダッシュボード（部署AI） | エージェント詳細 |
+|:---:|:---:|:---:|
+| ![ログイン](docs/screenshots/01-login.png) | ![ダッシュボード](docs/screenshots/02-dashboard.png) | ![エージェント詳細](docs/screenshots/03-agent-chat.png) |
+
 ## 構成
 
 | サービス | ポート | 役割 |

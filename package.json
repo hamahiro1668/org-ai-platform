@@ -5,7 +5,10 @@
   "workspaces": ["apps/web", "apps/api-gateway", "packages/*"],
   "scripts": {
     "dev": "concurrently \"npm run dev --workspace=apps/api-gateway\" \"npm run dev --workspace=apps/web\"",
-    "build": "turbo build"
+    "build": "turbo build",
+    "n8n:status": "node scripts/n8n-status.mjs",
+    "n8n:convert": "node scripts/n8n-convert-webhook.mjs",
+    "n8n:import": "node scripts/n8n-import-workflows.mjs"
   },
   "devDependencies": {
     "concurrently": "^8.0.0",

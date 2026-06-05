@@ -2,29 +2,54 @@
   "name": "org-ai Dept Sales",
   "nodes": [
     {
-      "parameters": {},
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dept-sales",
+        "responseMode": "onReceived",
+        "authentication": "headerAuth",
+        "options": {}
+      },
       "id": "trigger",
-      "name": "Execute Workflow Trigger",
-      "type": "n8n-nodes-base.executeWorkflowTrigger",
-      "typeVersion": 1,
-      "position": [240, 300]
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "228198ef-aa11-4c19-9d94-3479b35dfdc0"
     },
     {
       "parameters": {
-        "url": "={{ $json.runData.logUrl }}",
+        "url": "={{ $json.body.logUrl }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "x-webhook-token", "value": "={{ $env.N8N_WEBHOOK_AUTH_TOKEN || 'org-ai-n8n-secret-token' }}" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-webhook-token",
+              "value": "={{ $env.N8N_WEBHOOK_AUTH_TOKEN || 'org-ai-n8n-secret-token' }}"
+            }
           ]
         },
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
-            { "name": "taskId", "value": "={{ $json.runData.taskId }}" },
-            { "name": "message", "value": "営業部 (Sales) ワークフロー開始" },
-            { "name": "level", "value": "INFO" }
+            {
+              "name": "taskId",
+              "value": "={{ $json.body.taskId }}"
+            },
+            {
+              "name": "message",
+              "value": "営業部 (Sales) ワークフロー開始"
+            },
+            {
+              "name": "level",
+              "value": "INFO"
+            }
           ]
         },
         "options": {}
@@ -33,17 +58,23 @@
       "name": "Log Start",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [460, 300]
+      "position": [
+        460,
+        300
+      ]
     },
     {
       "parameters": {
-        "jsCode": "const rd = $('Execute Workflow Trigger').item.json.runData;\nconst input = (rd.input ?? '').toLowerCase();\nconst hint = (rd.taskType ?? '').toLowerCase();\nconst kw = (words) => words.some(w => input.includes(w.toLowerCase()) || hint.includes(w.toLowerCase()));\n\nlet taskMode = 'proposal';\nif (kw(['メール','email','mail','送信','送って'])) taskMode = 'email';\nelse if (kw(['議事録','商談メモ','ミーティング','会議メモ'])) taskMode = 'meeting_notes';\nelse if (kw(['提案書','企画書','ドキュメント','資料','報告書','レポート'])) taskMode = 'proposal';\nelse if (kw(['見積','見積書','quote'])) taskMode = 'quote';\nelse if (kw(['スケジュール','日程','カレンダー','予定'])) taskMode = 'schedule';\n\nconst prompts = {\n  email: `あなたは営業部のメール作成AIです。ユーザーの指示に基づき、丁寧かつビジネスライクなメールを作成してください。\\n必ず以下のJSON形式のみを返してください。\\n{\"taskType\":\"email\",\"to\":\"宛先\",\"cc\":\"\",\"subject\":\"件名\",\"body\":\"本文（改行は\\\\nで表現）\"}`,\n  meeting_notes: `あなたは営業議事録AIです。商談メモを構造化してまとめます。\\nJSON: {\"taskType\":\"meeting_notes\",\"title\":\"\",\"date\":\"YYYY-MM-DD\",\"attendees\":[],\"agenda\":[],\"decisions\":[],\"actionItems\":[{\"assignee\":\"\",\"task\":\"\",\"deadline\":\"\"}],\"summary\":\"\"}`,\n  proposal: `あなたは営業提案書AIです。プロフェッショナルな提案書を作成します。\\nJSON: {\"taskType\":\"proposal\",\"title\":\"\",\"summary\":\"\",\"content\":\"\"}`,\n  quote: `あなたは営業見積書AIです。見積を構造化します。\\nJSON: {\"taskType\":\"quote\",\"client\":\"\",\"items\":[{\"name\":\"\",\"qty\":1,\"unitPrice\":0}],\"totalAmount\":0,\"notes\":\"\"}`,\n  schedule: `あなたはスケジュール調整AIです。\\nJSON: {\"taskType\":\"schedule\",\"title\":\"\",\"preferredDates\":[\"YYYY-MM-DD\"],\"duration\":60,\"participants\":[],\"notes\":\"\"}`\n};\nconst systemPrompt = prompts[taskMode] ?? prompts.proposal;\nconst messages = [\n  { role: 'system', content: systemPrompt },\n  { role: 'user', content: rd.input }\n];\nreturn [{ json: { messages, taskMode, useJsonMode: true, department: 'SALES', org_id: rd.orgId, plan: rd.plan ?? 'STARTER', aiEngineUrl: rd.aiEngineUrl ?? 'http://ai-engine:8000' } }];"
+        "jsCode": "const rd = $('Webhook').item.json.body;\nconst input = (rd.input ?? '').toLowerCase();\nconst hint = (rd.taskType ?? '').toLowerCase();\nconst kw = (words) => words.some(w => input.includes(w.toLowerCase()) || hint.includes(w.toLowerCase()));\n\nlet taskMode = 'proposal';\nif (kw(['メール','email','mail','送信','送って'])) taskMode = 'email';\nelse if (kw(['議事録','商談メモ','ミーティング','会議メモ'])) taskMode = 'meeting_notes';\nelse if (kw(['提案書','企画書','ドキュメント','資料','報告書','レポート'])) taskMode = 'proposal';\nelse if (kw(['見積','見積書','quote'])) taskMode = 'quote';\nelse if (kw(['スケジュール','日程','カレンダー','予定'])) taskMode = 'schedule';\n\nconst prompts = {\n  email: `あなたは営業部のメール作成AIです。ユーザーの指示に基づき、丁寧かつビジネスライクなメールを作成してください。\\n必ず以下のJSON形式のみを返してください。\\n{\"taskType\":\"email\",\"to\":\"宛先\",\"cc\":\"\",\"subject\":\"件名\",\"body\":\"本文（改行は\\\\nで表現）\"}`,\n  meeting_notes: `あなたは営業議事録AIです。商談メモを構造化してまとめます。\\nJSON: {\"taskType\":\"meeting_notes\",\"title\":\"\",\"date\":\"YYYY-MM-DD\",\"attendees\":[],\"agenda\":[],\"decisions\":[],\"actionItems\":[{\"assignee\":\"\",\"task\":\"\",\"deadline\":\"\"}],\"summary\":\"\"}`,\n  proposal: `あなたは営業提案書AIです。プロフェッショナルな提案書を作成します。\\nJSON: {\"taskType\":\"proposal\",\"title\":\"\",\"summary\":\"\",\"content\":\"\"}`,\n  quote: `あなたは営業見積書AIです。見積を構造化します。\\nJSON: {\"taskType\":\"quote\",\"client\":\"\",\"items\":[{\"name\":\"\",\"qty\":1,\"unitPrice\":0}],\"totalAmount\":0,\"notes\":\"\"}`,\n  schedule: `あなたはスケジュール調整AIです。\\nJSON: {\"taskType\":\"schedule\",\"title\":\"\",\"preferredDates\":[\"YYYY-MM-DD\"],\"duration\":60,\"participants\":[],\"notes\":\"\"}`\n};\nconst systemPrompt = prompts[taskMode] ?? prompts.proposal;\nconst messages = [\n  { role: 'system', content: systemPrompt },\n  { role: 'user', content: rd.input }\n];\nreturn [{ json: { messages, taskMode, useJsonMode: true, department: 'SALES', org_id: rd.orgId, plan: rd.plan ?? 'STARTER', aiEngineUrl: rd.aiEngineUrl ?? 'http://ai-engine:8000' } }];"
       },
       "id": "build-prompt",
       "name": "Build Prompt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [680, 300]
+      "position": [
+        680,
+        300
+      ]
     },
     {
       "parameters": {
@@ -52,7 +83,10 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -65,7 +99,10 @@
       "name": "AI Engine Chat",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [900, 300]
+      "position": [
+        900,
+        300
+      ]
     },
     {
       "parameters": {
@@ -73,12 +110,19 @@
           "values": [
             {
               "conditions": {
-                "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict" },
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
                 "conditions": [
                   {
                     "leftValue": "={{ $('Build Prompt').item.json.taskMode }}",
                     "rightValue": "email",
-                    "operator": { "type": "string", "operation": "equals" }
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
                   }
                 ],
                 "combinator": "and"
@@ -88,13 +132,18 @@
             }
           ]
         },
-        "options": { "fallbackOutput": "extra" }
+        "options": {
+          "fallbackOutput": "extra"
+        }
       },
       "id": "switch-mode",
       "name": "Switch Email vs Other",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
-      "position": [1120, 300]
+      "position": [
+        1120,
+        300
+      ]
     },
     {
       "parameters": {
@@ -104,7 +153,10 @@
       "name": "Parse Email JSON",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1340, 200]
+      "position": [
+        1340,
+        200
+      ]
     },
     {
       "parameters": {
@@ -121,25 +173,46 @@
       "name": "Send Email (Gmail)",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
-      "position": [1560, 200]
+      "position": [
+        1560,
+        200
+      ]
     },
     {
       "parameters": {
-        "url": "={{ $('Execute Workflow Trigger').item.json.runData.callbackUrl }}",
+        "url": "={{ $('Webhook').item.json.body.callbackUrl }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "x-webhook-token", "value": "={{ $env.N8N_WEBHOOK_AUTH_TOKEN || 'org-ai-n8n-secret-token' }}" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-webhook-token",
+              "value": "={{ $env.N8N_WEBHOOK_AUTH_TOKEN || 'org-ai-n8n-secret-token' }}"
+            }
           ]
         },
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
-            { "name": "taskId", "value": "={{ $('Execute Workflow Trigger').item.json.runData.taskId }}" },
-            { "name": "status", "value": "DONE" },
-            { "name": "output", "value": "={{ JSON.stringify({ taskType: 'email', sentTo: $('Parse Email JSON').item.json.to, subject: $('Parse Email JSON').item.json.subject, body: $('Parse Email JSON').item.json.body }) }}" },
-            { "name": "workflowId", "value": "={{ $workflow.id }}" }
+            {
+              "name": "taskId",
+              "value": "={{ $('Webhook').item.json.body.taskId }}"
+            },
+            {
+              "name": "status",
+              "value": "DONE"
+            },
+            {
+              "name": "output",
+              "value": "={{ JSON.stringify({ taskType: 'email', sentTo: $('Parse Email JSON').item.json.to, subject: $('Parse Email JSON').item.json.subject, body: $('Parse Email JSON').item.json.body }) }}"
+            },
+            {
+              "name": "workflowId",
+              "value": "={{ $workflow.id }}"
+            }
           ]
         },
         "options": {}
@@ -148,25 +221,46 @@
       "name": "Callback (Email Done)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1780, 200]
+      "position": [
+        1780,
+        200
+      ]
     },
     {
       "parameters": {
-        "url": "={{ $('Execute Workflow Trigger').item.json.runData.callbackUrl }}",
+        "url": "={{ $('Webhook').item.json.body.callbackUrl }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "x-webhook-token", "value": "={{ $env.N8N_WEBHOOK_AUTH_TOKEN || 'org-ai-n8n-secret-token' }}" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-webhook-token",
+              "value": "={{ $env.N8N_WEBHOOK_AUTH_TOKEN || 'org-ai-n8n-secret-token' }}"
+            }
           ]
         },
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
-            { "name": "taskId", "value": "={{ $('Execute Workflow Trigger').item.json.runData.taskId }}" },
-            { "name": "status", "value": "DONE" },
-            { "name": "output", "value": "={{ $('AI Engine Chat').item.json.content }}" },
-            { "name": "workflowId", "value": "={{ $workflow.id }}" }
+            {
+              "name": "taskId",
+              "value": "={{ $('Webhook').item.json.body.taskId }}"
+            },
+            {
+              "name": "status",
+              "value": "DONE"
+            },
+            {
+              "name": "output",
+              "value": "={{ $('AI Engine Chat').item.json.content }}"
+            },
+            {
+              "name": "workflowId",
+              "value": "={{ $workflow.id }}"
+            }
           ]
         },
         "options": {}
@@ -175,23 +269,101 @@
       "name": "Callback (Other Done)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1340, 400]
+      "position": [
+        1340,
+        400
+      ]
     }
   ],
   "connections": {
-    "Execute Workflow Trigger": { "main": [[{ "node": "Log Start", "type": "main", "index": 0 }]] },
-    "Log Start": { "main": [[{ "node": "Build Prompt", "type": "main", "index": 0 }]] },
-    "Build Prompt": { "main": [[{ "node": "AI Engine Chat", "type": "main", "index": 0 }]] },
-    "AI Engine Chat": { "main": [[{ "node": "Switch Email vs Other", "type": "main", "index": 0 }]] },
-    "Switch Email vs Other": {
+    "Log Start": {
       "main": [
-        [{ "node": "Parse Email JSON", "type": "main", "index": 0 }],
-        [{ "node": "Callback (Other Done)", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Build Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "Parse Email JSON": { "main": [[{ "node": "Send Email (Gmail)", "type": "main", "index": 0 }]] },
-    "Send Email (Gmail)": { "main": [[{ "node": "Callback (Email Done)", "type": "main", "index": 0 }]] }
+    "Build Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Engine Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Engine Chat": {
+      "main": [
+        [
+          {
+            "node": "Switch Email vs Other",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Email vs Other": {
+      "main": [
+        [
+          {
+            "node": "Parse Email JSON",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback (Other Done)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Email JSON": {
+      "main": [
+        [
+          {
+            "node": "Send Email (Gmail)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email (Gmail)": {
+      "main": [
+        [
+          {
+            "node": "Callback (Email Done)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Log Start",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "executionOrder": "v1", "saveManualExecutions": true },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
   "staticData": null
 }

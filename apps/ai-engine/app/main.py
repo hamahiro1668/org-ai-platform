@@ -9,12 +9,40 @@ load_dotenv()
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from typing import Any, Optional
 from app.models.llm import OrchestateRequest, OrchestrateResponse, LLMRequest, LLMResponse, ChatMessage
 from app.orchestrator.orchestrator import orchestrator
 from app.orchestrator.intent_classifier import classify_intent
 from app.llm.router import llm_router, _resolve_model
 from app.governance.audit_logger import log_llm_call
 from app.governance.pii_screener import screen
+from app.planner import plan_capability
+
+
+class PlanCapability(BaseModel):
+    name: str
+    displayName: Optional[str] = None
+    description: str
+    department: Optional[str] = None
+    inputSchema: dict[str, Any]
+
+
+class PlanRequest(BaseModel):
+    message: str
+    org_id: str
+    plan: str = "STARTER"
+    available_capabilities: list[PlanCapability]
+
+
+class PlanResponse(BaseModel):
+    capability_name: Optional[str]
+    args: dict[str, Any]
+    confidence: float
+    reasoning: str
+    inferred_name: Optional[str] = None
+    pii_detected: bool = False
+    pii_types: list[str] = []
 
 app = FastAPI(title="AI Engine", version="1.0.0")
 
@@ -147,3 +175,36 @@ async def llm_chat(request: LLMRequest) -> LLMResponse:
         json_mode=request.json_mode,
     )
     return response
+
+
+@app.post("/plan", response_model=PlanResponse)
+async def plan(request: PlanRequest) -> PlanResponse:
+    pii_result = screen(request.message)
+    capabilities = [c.model_dump() for c in request.available_capabilities]
+    result = await plan_capability(
+        message=pii_result.text,
+        org_id=request.org_id,
+        plan=request.plan,
+        capabilities=capabilities,
+    )
+    asyncio.create_task(log_llm_call(
+        org_id=request.org_id,
+        department="GENERAL",
+        provider="anthropic",
+        model=_resolve_model(request.plan),
+        input_text=request.message,
+        output_text=json.dumps(result, ensure_ascii=False),
+        tokens=None,
+        latency_ms=None,
+        pii_detected=pii_result.detected,
+        pii_types=list(pii_result.types) if pii_result.detected else [],
+    ))
+    return PlanResponse(
+        capability_name=result.get("capability_name"),
+        args=result.get("args", {}),
+        confidence=result.get("confidence", 0.0),
+        reasoning=result.get("reasoning", ""),
+        inferred_name=result.get("inferred_name"),
+        pii_detected=pii_result.detected,
+        pii_types=list(pii_result.types) if pii_result.detected else [],
+    )

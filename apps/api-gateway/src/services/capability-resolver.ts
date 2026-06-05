@@ -1,0 +1,317 @@
+import Ajv, { type Schema } from 'ajv';
+import addFormats from 'ajv-formats';
+import { prisma } from '../utils/prisma';
+
+const AI_ENGINE_URL = process.env.AI_ENGINE_URL ?? 'http://localhost:8000';
+const N8N_URL = process.env.N8N_CLOUD_URL ?? process.env.N8N_URL ?? 'http://localhost:5678';
+const N8N_API_KEY = process.env.N8N_API_KEY ?? '';
+const N8N_WEBHOOK_AUTH_TOKEN = process.env.N8N_WEBHOOK_AUTH_TOKEN ?? 'org-ai-n8n-secret-token';
+const N8N_TIMEOUT_MS = Number(process.env.N8N_TIMEOUT_MS ?? 30_000);
+const CREDS_CACHE_TTL_MS = 3 * 60 * 1000;
+const ADMIN_SLACK_CHANNEL = process.env.ADMIN_SLACK_CHANNEL ?? '#org-ai-admin';
+
+const ajv = new Ajv({ allErrors: true, strict: false });
+addFormats(ajv);
+
+export type ErrorType =
+  | 'AUTH_MISSING'
+  | 'RATE_LIMIT'
+  | 'NODE_FAILED'
+  | 'TIMEOUT'
+  | 'VALIDATION_ERROR'
+  | null;
+
+export type N8nEnvelope = {
+  status: 'success' | 'error';
+  error_type: ErrorType;
+  message: string;
+  data: unknown;
+};
+
+export type ResolveOutcome =
+  | { outcome: 'EXECUTED'; capability: string; envelope: N8nEnvelope; executionLogId: string }
+  | { outcome: 'NEEDS_AUTH'; capability: string; missing: string[] }
+  | { outcome: 'UNSUPPORTED'; inferredName: string | null; reasoning: string; gapId: string }
+  | { outcome: 'VALIDATION_ERROR'; capability: string; errors: string[] };
+
+type PlanFromAi = {
+  capability_name: string | null;
+  args: Record<string, unknown>;
+  confidence: number;
+  reasoning: string;
+  inferred_name?: string | null;
+};
+
+// 内部再呼び出しの無限再帰を防ぐ
+let resolvingNotifySlack = false;
+
+export async function resolveAndExecute(input: {
+  rawInput?: string;
+  name?: string | null;
+  args?: Record<string, unknown>;
+  userId: string;
+  orgId: string;
+  plan?: string;
+}): Promise<ResolveOutcome> {
+  let { name, args = {} } = input;
+  let reasoning = '';
+  let inferredName: string | null = null;
+
+  if (!name) {
+    const planResult = await fetchPlanFromAiEngine(input.rawInput ?? '', input.orgId, input.plan ?? 'STARTER', input.userId);
+    name = planResult.capability_name ?? null;
+    args = planResult.args ?? {};
+    reasoning = planResult.reasoning;
+    inferredName = planResult.inferred_name ?? null;
+    if (!name) {
+      const gap = await recordGap({
+        orgId: input.orgId,
+        userId: input.userId,
+        rawRequest: input.rawInput ?? '',
+        inferredName,
+      });
+      await notifyAdmins(input.orgId, gap.rawRequest, gap.inferredName);
+      return { outcome: 'UNSUPPORTED', inferredName, reasoning, gapId: gap.id };
+    }
+  }
+
+  const capability = await prisma.capability.findUnique({
+    where: { orgId_name: { orgId: input.orgId, name } },
+    include: { requiredCreds: true },
+  });
+  if (!capability || capability.status === 'DISABLED') {
+    const gap = await recordGap({
+      orgId: input.orgId,
+      userId: input.userId,
+      rawRequest: input.rawInput ?? '',
+      inferredName: name,
+    });
+    await notifyAdmins(input.orgId, gap.rawRequest, gap.inferredName);
+    return { outcome: 'UNSUPPORTED', inferredName: name, reasoning: 'レジストリに該当 capability なし or DISABLED', gapId: gap.id };
+  }
+
+  const validation = validateArgs(capability.inputSchema as Schema, args);
+  if (!validation.ok) {
+    await prisma.executionLog.create({
+      data: {
+        orgId: input.orgId,
+        capabilityId: capability.id,
+        status: 'error',
+        errorType: 'VALIDATION_ERROR',
+        requestArgs: args as object,
+        responseData: { errors: validation.errors },
+      },
+    });
+    return { outcome: 'VALIDATION_ERROR', capability: capability.name, errors: validation.errors };
+  }
+
+  const missing = await checkCredentials(capability.id);
+  if (missing.length > 0) {
+    return { outcome: 'NEEDS_AUTH', capability: capability.name, missing };
+  }
+
+  const envelope = await invokeN8n(capability.webhookPath ?? `cap-${capability.name}`, args);
+  const execLog = await prisma.executionLog.create({
+    data: {
+      orgId: input.orgId,
+      capabilityId: capability.id,
+      status: envelope.status,
+      errorType: envelope.error_type ?? null,
+      requestArgs: args as object,
+      responseData: envelope.data as object,
+    },
+  });
+  return { outcome: 'EXECUTED', capability: capability.name, envelope, executionLogId: execLog.id };
+}
+
+async function fetchPlanFromAiEngine(message: string, orgId: string, plan: string, _userId: string): Promise<PlanFromAi> {
+  const caps = await prisma.capability.findMany({
+    where: { orgId, status: { not: 'DISABLED' } },
+    select: { name: true, displayName: true, description: true, department: true, inputSchema: true },
+  });
+  try {
+    const ctrl = AbortSignal.timeout(15_000);
+    const res = await fetch(`${AI_ENGINE_URL}/plan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message,
+        org_id: orgId,
+        plan,
+        available_capabilities: caps.map((c) => ({
+          name: c.name,
+          displayName: c.displayName,
+          description: c.description,
+          department: c.department,
+          inputSchema: c.inputSchema,
+        })),
+      }),
+      signal: ctrl,
+    });
+    if (!res.ok) {
+      console.error(`[capability-resolver] AI Engine /plan returned ${res.status}`);
+      return { capability_name: null, args: {}, confidence: 0, reasoning: 'AI Engine /plan 失敗' };
+    }
+    return (await res.json()) as PlanFromAi;
+  } catch (e) {
+    console.error('[capability-resolver] fetchPlanFromAiEngine failed:', e);
+    return { capability_name: null, args: {}, confidence: 0, reasoning: 'AI Engine 到達不可' };
+  }
+}
+
+function validateArgs(schema: Schema, args: unknown): { ok: true } | { ok: false; errors: string[] } {
+  try {
+    const validate = ajv.compile(schema);
+    if (validate(args)) return { ok: true };
+    const errors = (validate.errors ?? []).map((e) => `${e.instancePath || '/'} ${e.message ?? ''}`);
+    return { ok: false, errors };
+  } catch (e) {
+    return { ok: false, errors: [`schema compile error: ${String(e)}`] };
+  }
+}
+
+async function checkCredentials(capabilityId: string): Promise<string[]> {
+  const creds = await prisma.requiredCredential.findMany({ where: { capabilityId } });
+  if (creds.length === 0) return [];
+  const now = Date.now();
+  const missing: string[] = [];
+  for (const cred of creds) {
+    let status = cred.status;
+    const stale = !cred.lastCheckedAt || now - cred.lastCheckedAt.getTime() > CREDS_CACHE_TTL_MS;
+    if (stale && N8N_API_KEY) {
+      const refreshed = await refreshCredentialFromN8n(cred.provider);
+      if (refreshed !== null) {
+        status = refreshed ? 'CONNECTED' : 'DISCONNECTED';
+        await prisma.requiredCredential.update({
+          where: { id: cred.id },
+          data: { status, lastCheckedAt: new Date() },
+        });
+      }
+    }
+    if (status !== 'CONNECTED') missing.push(cred.provider);
+  }
+  return missing;
+}
+
+const n8nCredsCache = new Map<string, { ok: boolean; at: number }>();
+
+async function refreshCredentialFromN8n(provider: string): Promise<boolean | null> {
+  const cached = n8nCredsCache.get(provider);
+  if (cached && Date.now() - cached.at < CREDS_CACHE_TTL_MS) return cached.ok;
+  try {
+    const ctrl = AbortSignal.timeout(10_000);
+    const res = await fetch(`${N8N_URL}/api/v1/credentials`, {
+      headers: { 'X-N8N-API-KEY': N8N_API_KEY },
+      signal: ctrl,
+    });
+    if (!res.ok) return null;
+    const j = (await res.json()) as { data?: { name?: string; type?: string }[] };
+    const hit = (j.data ?? []).some(
+      (c) =>
+        (c.type ?? '').toLowerCase().includes(provider.toLowerCase()) ||
+        (c.name ?? '').toLowerCase().includes(provider.toLowerCase()),
+    );
+    n8nCredsCache.set(provider, { ok: hit, at: Date.now() });
+    return hit;
+  } catch (e) {
+    console.error(`[capability-resolver] n8n credentials check failed (${provider}):`, e);
+    return null;
+  }
+}
+
+async function invokeN8n(webhookPath: string, args: Record<string, unknown>): Promise<N8nEnvelope> {
+  const url = `${N8N_URL}/webhook/${webhookPath}`;
+  try {
+    const ctrl = AbortSignal.timeout(N8N_TIMEOUT_MS);
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-org-ai-token': N8N_WEBHOOK_AUTH_TOKEN,
+      },
+      body: JSON.stringify(args),
+      signal: ctrl,
+    });
+    const text = await res.text();
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = null;
+    }
+    if (!res.ok) {
+      return {
+        status: 'error',
+        error_type: res.status === 404 ? 'NODE_FAILED' : res.status === 429 ? 'RATE_LIMIT' : 'NODE_FAILED',
+        message: `n8n HTTP ${res.status}: ${text.slice(0, 200)}`,
+        data: parsed,
+      };
+    }
+    if (parsed && typeof parsed === 'object' && 'status' in (parsed as object)) {
+      const env = parsed as Partial<N8nEnvelope>;
+      return {
+        status: env.status === 'error' ? 'error' : 'success',
+        error_type: (env.error_type ?? null) as ErrorType,
+        message: typeof env.message === 'string' ? env.message : '',
+        data: env.data ?? null,
+      };
+    }
+    return { status: 'success', error_type: null, message: '', data: parsed ?? text };
+  } catch (e: unknown) {
+    const isTimeout = (e as { name?: string })?.name === 'AbortError' || /timeout|aborted/i.test(String(e));
+    return {
+      status: 'error',
+      error_type: isTimeout ? 'TIMEOUT' : 'NODE_FAILED',
+      message: String(e),
+      data: null,
+    };
+  }
+}
+
+async function recordGap(input: {
+  orgId: string;
+  userId: string;
+  rawRequest: string;
+  inferredName: string | null;
+}): Promise<{ id: string; rawRequest: string; inferredName: string | null }> {
+  const key = input.inferredName ?? input.rawRequest.slice(0, 60);
+  const existing = await prisma.capabilityGap.findFirst({
+    where: { orgId: input.orgId, inferredName: key },
+  });
+  if (existing) {
+    const updated = await prisma.capabilityGap.update({
+      where: { id: existing.id },
+      data: { count: { increment: 1 }, rawRequest: input.rawRequest, requestedBy: input.userId },
+    });
+    return { id: updated.id, rawRequest: updated.rawRequest, inferredName: updated.inferredName };
+  }
+  const created = await prisma.capabilityGap.create({
+    data: {
+      orgId: input.orgId,
+      requestedBy: input.userId,
+      rawRequest: input.rawRequest,
+      inferredName: key,
+    },
+  });
+  return { id: created.id, rawRequest: created.rawRequest, inferredName: created.inferredName };
+}
+
+async function notifyAdmins(orgId: string, rawRequest: string, inferredName: string | null): Promise<void> {
+  if (resolvingNotifySlack) return;
+  resolvingNotifySlack = true;
+  try {
+    await resolveAndExecute({
+      name: 'notify_slack',
+      args: {
+        channel: ADMIN_SLACK_CHANNEL,
+        text: `[未対応ケイパビリティ] org=${orgId}\n要求: ${rawRequest.slice(0, 200)}\n推定名: ${inferredName ?? '不明'}`,
+      },
+      userId: 'system',
+      orgId,
+    });
+  } catch (e) {
+    console.error('[capability-resolver] notifyAdmins failed:', e);
+  } finally {
+    resolvingNotifySlack = false;
+  }
+}

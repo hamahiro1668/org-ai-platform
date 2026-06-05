@@ -1,0 +1,123 @@
+{
+  "name": "org-ai Cap send_email",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cap-send_email",
+        "responseMode": "responseNode",
+        "authentication": "headerAuth",
+        "options": {}
+      },
+      "id": "trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "cap-send-email-trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $('Webhook').item.json.body ?? {};\nconst missing = [];\nif (!body.to) missing.push('to');\nif (!body.subject) missing.push('subject');\nif (!body.body) missing.push('body');\nreturn [{ json: { ...body, _missing: missing } }];"
+      },
+      "id": "guard",
+      "name": "Args Guard",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json._missing.length }}",
+                    "rightValue": 0,
+                    "operator": { "type": "number", "operation": "gt" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "invalid"
+            }
+          ]
+        },
+        "options": { "fallbackOutput": "extra" }
+      },
+      "id": "switch",
+      "name": "Has Missing?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "text",
+        "message": "={{ $json.body }}",
+        "options": {
+          "ccList": "={{ $json.cc || '' }}",
+          "appendAttribution": false
+        }
+      },
+      "id": "send",
+      "name": "Send Email (Gmail)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { status: 'success', error_type: null, message: 'メールを送信しました', data: { taskType: 'email_sent', to: $('Args Guard').item.json.to, subject: $('Args Guard').item.json.subject } } }];"
+      },
+      "id": "format-ok",
+      "name": "Format OK",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const missing = $json._missing ?? [];\nreturn [{ json: { status: 'error', error_type: 'VALIDATION_ERROR', message: `必須引数が不足: ${missing.join(', ')}`, data: { missing } } }];"
+      },
+      "id": "format-bad",
+      "name": "Format Bad",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 420]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Args Guard", "type": "main", "index": 0 }]] },
+    "Args Guard": { "main": [[{ "node": "Has Missing?", "type": "main", "index": 0 }]] },
+    "Has Missing?": {
+      "main": [
+        [{ "node": "Format Bad", "type": "main", "index": 0 }],
+        [{ "node": "Send Email (Gmail)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Email (Gmail)": { "main": [[{ "node": "Format OK", "type": "main", "index": 0 }]] },
+    "Format OK": { "main": [[{ "node": "Respond", "type": "main", "index": 0 }]] },
+    "Format Bad": { "main": [[{ "node": "Respond", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1", "saveManualExecutions": true },
+  "staticData": null
+}

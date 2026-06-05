@@ -2,59 +2,57 @@ import { prisma } from '../utils/prisma';
 
 const N8N_URL = process.env.N8N_CLOUD_URL ?? process.env.N8N_URL ?? 'http://localhost:5678';
 const N8N_API_KEY = process.env.N8N_API_KEY ?? '';
+const N8N_WEBHOOK_AUTH_TOKEN = process.env.N8N_WEBHOOK_AUTH_TOKEN ?? 'org-ai-n8n-secret-token';
 
-const DEPT_WORKFLOW_IDS: Record<string, string> = {
-  SALES: process.env.N8N_WORKFLOW_ID_SALES ?? '',
-  MARKETING: process.env.N8N_WORKFLOW_ID_MARKETING ?? '',
-  ACCOUNTING: process.env.N8N_WORKFLOW_ID_ACCOUNTING ?? '',
-  ANALYTICS: process.env.N8N_WORKFLOW_ID_ANALYTICS ?? '',
-  GENERAL: process.env.N8N_WORKFLOW_ID_GENERAL ?? '',
-};
-const N8N_WORKFLOW_ID_FALLBACK = process.env.N8N_WORKFLOW_ID ?? '';
-
-const DEPT_WORKFLOW_NAMES: Record<string, string> = {
-  SALES: 'org-ai Dept Sales',
-  MARKETING: 'org-ai Dept Marketing',
-  ACCOUNTING: 'org-ai Dept Accounting',
-  ANALYTICS: 'org-ai Dept Analytics',
-  GENERAL: 'org-ai Dept General',
+const DEPT_WEBHOOK_PATHS: Record<string, string> = {
+  SALES: 'dept-sales',
+  MARKETING: 'dept-marketing',
+  ACCOUNTING: 'dept-accounting',
+  ANALYTICS: 'dept-analytics',
+  GENERAL: 'dept-general',
 };
 
-const cachedWorkflowIds = new Map<string, string>();
+const cachedActiveWebhooks = new Map<string, boolean>();
 
-export async function resolveWorkflowIdForDept(department: string): Promise<string | null> {
-  const cached = cachedWorkflowIds.get(department);
-  if (cached) return cached;
-
-  const envId = DEPT_WORKFLOW_IDS[department];
-  if (envId) {
-    cachedWorkflowIds.set(department, envId);
-    return envId;
+/** n8n の Public API を使い、対応するワークフローが「アクティブ」かを判定。
+ *  API キー無しなら確認スキップして true 扱い（呼び出し側で 404 をフォールバック処理する）。
+ */
+async function isWebhookAvailable(department: string): Promise<boolean> {
+  if (cachedActiveWebhooks.has(department)) return cachedActiveWebhooks.get(department)!;
+  if (!N8N_API_KEY) {
+    cachedActiveWebhooks.set(department, true);
+    return true;
   }
-
-  if (N8N_API_KEY) {
-    try {
-      const res = await fetch(`${N8N_URL}/api/v1/workflows`, {
-        headers: { 'X-N8N-API-KEY': N8N_API_KEY },
-      });
-      if (res.ok) {
-        const json = (await res.json()) as { data: { id: string; name: string }[] };
-        const targetName = DEPT_WORKFLOW_NAMES[department];
-        const wf = json.data.find((w) => w.name === targetName);
-        if (wf) {
-          cachedWorkflowIds.set(department, wf.id);
-          return wf.id;
-        }
-      }
-    } catch (e) {
-      console.error(`[n8n] resolveWorkflowIdForDept(${department}) failed:`, e);
+  const path = DEPT_WEBHOOK_PATHS[department];
+  if (!path) {
+    cachedActiveWebhooks.set(department, false);
+    return false;
+  }
+  try {
+    const res = await fetch(`${N8N_URL}/api/v1/workflows?active=true`, {
+      headers: { 'X-N8N-API-KEY': N8N_API_KEY },
+    });
+    if (!res.ok) {
+      cachedActiveWebhooks.set(department, false);
+      return false;
     }
+    const json = (await res.json()) as { data: { id: string; name: string; active: boolean }[] };
+    const targetName = `org-ai ${department.charAt(0)}${department.slice(1).toLowerCase()}`;
+    const hit = json.data.find(
+      (w) =>
+        w.active &&
+        (w.name === `org-ai Dept ${department.charAt(0)}${department.slice(1).toLowerCase()}` ||
+          w.name.toLowerCase().includes(`dept ${department.toLowerCase()}`) ||
+          w.name === targetName),
+    );
+    const ok = !!hit;
+    cachedActiveWebhooks.set(department, ok);
+    return ok;
+  } catch (e) {
+    console.error(`[n8n] isWebhookAvailable(${department}) failed:`, e);
+    cachedActiveWebhooks.set(department, false);
+    return false;
   }
-
-  if (N8N_WORKFLOW_ID_FALLBACK) {
-    return N8N_WORKFLOW_ID_FALLBACK;
-  }
-  return null;
 }
 
 export async function triggerN8nWorkflow(task: {
@@ -64,47 +62,47 @@ export async function triggerN8nWorkflow(task: {
   input: string;
   department: string;
   taskType?: string | null;
-}): Promise<void> {
-  const workflowId = await resolveWorkflowIdForDept(task.department);
-  if (!workflowId) {
-    console.warn(`[n8n] workflow id not resolved for ${task.department} — skipping trigger`);
-    return;
+}): Promise<boolean> {
+  const path = DEPT_WEBHOOK_PATHS[task.department];
+  if (!path) {
+    console.warn(`[n8n] webhook path not defined for ${task.department}`);
+    return false;
   }
   const org = await prisma.organization.findUnique({
     where: { id: task.orgId },
     select: { plan: true },
   });
   try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (N8N_API_KEY) headers['X-N8N-API-KEY'] = N8N_API_KEY;
-    const res = await fetch(`${N8N_URL}/api/v1/workflows/${workflowId}/run`, {
+    const res = await fetch(`${N8N_URL}/webhook/${path}`, {
       method: 'POST',
-      headers,
+      headers: {
+        'Content-Type': 'application/json',
+        // Webhook ノードの Header Auth でこのトークンを受ける
+        'x-org-ai-token': N8N_WEBHOOK_AUTH_TOKEN,
+      },
       body: JSON.stringify({
-        startNodes: [],
-        runData: {
-          taskId: task.id,
-          orgId: task.orgId,
-          title: task.title,
-          input: task.input,
-          department: task.department,
-          taskType: task.taskType ?? null,
-          plan: org?.plan ?? 'STARTER',
-          callbackUrl: `${process.env.API_GATEWAY_URL ?? 'http://localhost:4000'}/api/webhooks/n8n/task-complete`,
-          logUrl: `${process.env.API_GATEWAY_URL ?? 'http://localhost:4000'}/api/webhooks/n8n/task-log`,
-          aiEngineUrl: process.env.AI_ENGINE_URL ?? 'http://localhost:8000',
-        },
+        taskId: task.id,
+        orgId: task.orgId,
+        title: task.title,
+        input: task.input,
+        department: task.department,
+        taskType: task.taskType ?? null,
+        plan: org?.plan ?? 'STARTER',
+        callbackUrl: `${process.env.API_GATEWAY_URL ?? 'http://localhost:4000'}/api/webhooks/n8n/task-complete`,
+        logUrl: `${process.env.API_GATEWAY_URL ?? 'http://localhost:4000'}/api/webhooks/n8n/task-log`,
+        aiEngineUrl: process.env.AI_ENGINE_URL ?? 'http://localhost:8000',
       }),
     });
     if (!res.ok) {
       const body = await res.text();
-      console.error(`[n8n] run failed: ${res.status} ${body}`);
-    } else {
-      const json = (await res.json()) as { data: { executionId: string } };
-      console.log(`[n8n] workflow started, executionId=${json.data?.executionId}`);
+      console.error(`[n8n] webhook ${path} failed: ${res.status} ${body}`);
+      return false;
     }
+    console.log(`[n8n] webhook ${path} accepted (taskId=${task.id})`);
+    return true;
   } catch (e) {
-    console.error('[n8n] trigger failed:', e);
+    console.error(`[n8n] webhook ${path} trigger failed:`, e);
+    return false;
   }
 }
 
@@ -165,10 +163,11 @@ export async function dispatchQueuedTask(task: {
   department: string;
   taskType?: string | null;
 }): Promise<void> {
-  const workflowId = await resolveWorkflowIdForDept(task.department);
-  if (workflowId) {
-    await triggerN8nWorkflow(task);
-  } else {
-    await executeTaskViaAiEngine(task);
+  const useN8n = await isWebhookAvailable(task.department);
+  if (useN8n) {
+    const ok = await triggerN8nWorkflow(task);
+    if (ok) return;
+    console.warn(`[n8n] webhook 呼び出し失敗 → AI Engine にフォールバック (task=${task.id})`);
   }
+  await executeTaskViaAiEngine(task);
 }

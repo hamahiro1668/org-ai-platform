@@ -139,3 +139,72 @@ model ScheduledTask {
 
   @@index([orgId, enabled])
 }
+
+enum CapabilityStatus {
+  ACTIVE
+  NEEDS_AUTH
+  DISABLED
+}
+
+enum CredentialStatus {
+  CONNECTED
+  DISCONNECTED
+}
+
+model Capability {
+  id            String               @id @default(cuid())
+  orgId         String
+  name          String
+  displayName   String
+  description   String
+  department    String
+  inputSchema   Json
+  status        CapabilityStatus     @default(NEEDS_AUTH)
+  n8nWorkflowId String?
+  webhookPath   String?
+  requiredCreds RequiredCredential[]
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  @@unique([orgId, name])
+  @@index([orgId, status])
+}
+
+model RequiredCredential {
+  id            String           @id @default(cuid())
+  capabilityId  String
+  capability    Capability       @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
+  provider      String
+  status        CredentialStatus @default(DISCONNECTED)
+  lastCheckedAt DateTime?
+
+  @@index([capabilityId])
+}
+
+model CapabilityGap {
+  id           String   @id @default(cuid())
+  orgId        String
+  requestedBy  String
+  rawRequest   String
+  inferredName String?
+  count        Int      @default(1)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([orgId, inferredName])
+  @@index([orgId, createdAt])
+}
+
+model ExecutionLog {
+  id           String   @id @default(cuid())
+  orgId        String
+  capabilityId String?
+  status       String
+  errorType    String?
+  requestArgs  Json
+  responseData Json?
+  createdAt    DateTime @default(now())
+
+  @@index([orgId, createdAt])
+  @@index([capabilityId])
+}

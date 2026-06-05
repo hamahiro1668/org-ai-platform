@@ -1,0 +1,78 @@
+{
+  "name": "org-ai Cap draft_email",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cap-draft_email",
+        "responseMode": "responseNode",
+        "authentication": "headerAuth",
+        "options": {}
+      },
+      "id": "trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "cap-draft-email-trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $('Webhook').item.json.body ?? {};\nconst args = body;\nconst aiEngineUrl = body.aiEngineUrl ?? 'http://ai-engine:8000';\nconst recipientHint = args.recipientHint ?? '';\nconst purpose = args.purpose ?? '';\nconst toneHint = args.toneHint ?? '丁寧';\n\nconst systemPrompt = `あなたは営業部のメール下書きAIです。\\n以下のJSONのみで返してください (前後の説明文・コードフェンス禁止):\\n{\\\"subject\\\":\\\"...\\\",\\\"body\\\":\\\"... (改行は\\\\\\\\nで表現)\\\"}`;\nconst userPrompt = `宛先ヒント: ${recipientHint}\\n目的: ${purpose}\\nトーン: ${toneHint}\\n上記でメール下書きを作成してください。`;\n\nreturn [{ json: { aiEngineUrl, payload: { messages: [{ role:'system', content: systemPrompt }, { role:'user', content: userPrompt }], department:'SALES', org_id: body.orgId ?? 'unknown', plan: body.plan ?? 'STARTER', json_mode: true } } }];"
+      },
+      "id": "build",
+      "name": "Build Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.aiEngineUrl }}/llm/chat",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json.payload) }}",
+        "options": {}
+      },
+      "id": "ai",
+      "name": "AI Engine Chat",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.content ?? '';\nlet parsed = { subject: '', body: raw };\ntry { parsed = JSON.parse(raw); } catch (e) { parsed = { subject: '(JSONパース失敗)', body: raw }; }\nreturn [{ json: { status: 'success', error_type: null, message: 'メール下書きを生成しました', data: { taskType: 'email_draft', subject: parsed.subject, body: parsed.body, _ai_meta: { model: $json.model, tokens_used: $json.tokens_used } } } }];"
+      },
+      "id": "format",
+      "name": "Format Envelope",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Build Prompt", "type": "main", "index": 0 }]] },
+    "Build Prompt": { "main": [[{ "node": "AI Engine Chat", "type": "main", "index": 0 }]] },
+    "AI Engine Chat": { "main": [[{ "node": "Format Envelope", "type": "main", "index": 0 }]] },
+    "Format Envelope": { "main": [[{ "node": "Respond", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1", "saveManualExecutions": true },
+  "staticData": null
+}
