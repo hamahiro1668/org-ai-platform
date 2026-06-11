@@ -1,0 +1,51 @@
+# Version control
+.git
+.gitignore
+
+# Dependencies — reinstalled inside the image
+node_modules
+**/node_modules
+
+# Build outputs — rebuilt inside the image
+dist
+**/dist
+.turbo
+**/.turbo
+
+# Local env & secrets — never bake into images
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+
+# Vercel
+.vercel
+**/.vercel
+
+# Local data / SQLite
+data
+packages/data
+
+# Python caches / virtualenvs
+**/__pycache__
+**/*.pyc
+.venv
+**/.venv
+**/*.egg-info
+
+# Editor / OS
+.DS_Store
+**/.DS_Store
+.vscode
+.cursor
+
+# Docs & non-build assets (not needed at build time)
+docs
+marketing
+tasks
+DEPLOYMENT_RUNBOOK.md
+DESIGN.md
+
+# Backups
+apps/n8n-workflows.bak.*
