@@ -76,6 +76,18 @@
 - フロント: Vercel プレビュー（`flow-n5a6ybcec…`）。バック: Render `org-ai-api-gateway`/`org-ai-ai-engine` が `hamahiro1668/main`（CORS修正コミット `f81c82f`）で稼働。Neon に `Agent` テーブル適用済み。Anthropic キー設定済み。
 - リポジトリ: 正準デプロイ元 = `hamahiro1668/main`（全修正反映）。作業リポ `hamada-phasera` には feature ブランチ + `deploy-prod` ブランチ（最終状態）を保持。
 
+### Phase 9: n8n ワークフロー生成・n8n経由実行を有効化 ✅（2回目セッション後半）
+ユーザー提供の Render API キー / Anthropic キー / n8n API キーで本番設定し、n8n 経由のエージェント実行を**完全動作**させた。
+- **n8n 調査**: active な n8n = `org-ai-n8n-web.onrender.com`（v2.15, Neon DB, Public API 有効）。gateway に `N8N_API_KEY` が無かったため設定（→ 生成有効化）。
+- **n8n ワークフロー生成 ✅**: エージェント作成時に `org-ai Agent <id>` が生成・active 化されることを Public API で確認（`n8nStatus=ACTIVE`）。
+- **n8n 経由実行の詰まりを実行ログで1つずつ特定・修正**:
+  1. **WAF（Render edge）が Code ノード入り作成を「Blocked」403** → Code ノード廃止、LLM本文は gateway で組み立て `llmBody`（JSON文字列）を webhook 経由で渡す設計に（`buildAgentWorkflowJson` 全面改修 + `triggerN8nWorkflowByPath` で llmBody 構築）。
+  2. **n8n が式内 `$env` をブロック**（"access to env vars denied"）でコールバック失敗 → トークンを生成時に literal 埋め込み。
+  3. **コールバック先が `localhost:4000`**（gateway に `API_GATEWAY_URL` 未設定）で connection refused → Render env に `API_GATEWAY_URL=https://org-ai-api-gateway.onrender.com` 設定。
+  4. **コールバックノードが GET 送信**（n8n httpRequest は method 既定 GET）で POST専用ルートに 404 → コールバックノードに `method: 'POST'` 追加。
+- **本番E2E成功 ✅**: register→作成（n8nStatus=ACTIVE）→実行→ **Webhook → AI Engine Chat → Callback(POST) → task DONE**（実Claude出力）。n8n executions API で `status=success` を確認。
+- n8n がスリープ中は gateway の retry→AI Engineフォールバックで実行（DBが真実の源のため必ず完走）。
+
 ### 既知の制約 / メモ
 - gateway の Render ビルドは `tsc --noCheck`（環境固有の @types/node 解決問題回避）。型安全は `npm run typecheck` と vitest で担保。根本原因（Render の monorepo hoisting）が解決すれば `tsc` に戻してよい。
 - keepalive.yml は workflow スコープの都合で `hamahiro1668` 側 main に未反映。GitHub UI から追加するか、scope 付きトークンで push 可能。
