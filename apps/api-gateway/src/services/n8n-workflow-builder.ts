@@ -111,6 +111,7 @@ export function buildAgentWorkflowJson(agent: AgentWorkflowInput): Record<string
       },
       {
         parameters: {
+          method: 'POST',
           url: '={{ $(\'Webhook\').item.json.body.callbackUrl }}',
           sendHeaders: true,
           headerParameters: {
