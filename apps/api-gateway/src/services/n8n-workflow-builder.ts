@@ -63,7 +63,10 @@ function n8nFetch(path: string, init?: RequestInit): Promise<Response> {
  */
 export function buildAgentWorkflowJson(agent: AgentWorkflowInput): Record<string, unknown> {
   const path = agentWebhookPath(agent.id);
-  const tokenExpr = "={{ $env.N8N_WEBHOOK_AUTH_TOKEN || 'org-ai-n8n-secret-token' }}";
+  // n8n は式内の $env アクセスを既定でブロックする（"access to env vars denied"）。
+  // コールバックの x-webhook-token は生成時に literal 値を埋め込む（gateway の
+  // N8N_WEBHOOK_AUTH_TOKEN と一致 → /api/webhooks/n8n/task-complete を通過）。
+  const tokenExpr = N8N_WEBHOOK_AUTH_TOKEN;
 
   // 重要: n8n は Render の WAF (Cloudflare 系) 配下にあり、Code ノードの複雑な jsCode を含む
   // ワークフロー作成リクエストは「Blocked」403 で弾かれる。そのため Code ノードを使わず、
