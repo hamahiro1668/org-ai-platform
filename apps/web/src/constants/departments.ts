@@ -21,3 +21,12 @@ export const DEPARTMENTS = [
   { key: 'ANALYTICS', label: 'データ分析', icon: '📈' },
   { key: 'GENERAL', label: '総合AI', icon: '✨' },
 ];
+
+/** 部署キー → キャラクター（data/agents と一致）。チャット等のUIで使う。 */
+export const DEPT_CHARACTER: Record<string, { name: string; image: string }> = {
+  SALES: { name: 'セールスくん', image: '/characters/営業.png' },
+  MARKETING: { name: 'バズちゃん', image: '/characters/マーケティング.png' },
+  ACCOUNTING: { name: 'カルクさん', image: '/characters/経理.png' },
+  ANALYTICS: { name: 'アナリーゼ', image: '/characters/データアナリスト.png' },
+  GENERAL: { name: 'マモルくん', image: '/characters/エンジニア.png' },
+};

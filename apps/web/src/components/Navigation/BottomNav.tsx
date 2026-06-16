@@ -1,5 +1,5 @@
 import { motion, useReducedMotion } from 'framer-motion';
-import { ArrowLeft, Bot, Home, Moon, Package, Search, Shield, Sparkles, Sun } from 'lucide-react';
+import { ArrowLeft, BarChart3, Bot, Home, Moon, Package, Search, Shield, Sparkles, Sun } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useChatStore } from '../../store/chatStore';
 import { useFooterSearchStore } from '../../store/footerSearchStore';
@@ -28,6 +28,7 @@ export function BottomNav({ showBack, onBack }: BottomNavProps) {
 
   const onChat = location.pathname.startsWith('/chat');
   const isHomeActive = location.pathname === '/';
+  const isDashboardActive = location.pathname.startsWith('/dashboard');
   const isDeliverablesActive = location.pathname.startsWith('/deliverables');
   const isAgentsActive = location.pathname.startsWith('/agents');
   const isGovernanceActive = location.pathname.startsWith('/governance');
@@ -61,6 +62,7 @@ export function BottomNav({ showBack, onBack }: BottomNavProps) {
           ) : (
             <div className="liquid-pill-inner flex h-[52px] items-center justify-between gap-1 px-3">
               <NavItem icon={<Home size={19} />} active={isHomeActive} onClick={() => navigate('/')} reduceMotion={reduceMotion} />
+              <NavItem icon={<BarChart3 size={19} />} active={isDashboardActive} onClick={() => navigate('/dashboard')} reduceMotion={reduceMotion} />
               <NavItem icon={<Bot size={19} />} active={isAgentsActive} onClick={() => navigate('/agents')} reduceMotion={reduceMotion} />
               <NavItem icon={<Package size={19} />} active={isDeliverablesActive} onClick={() => navigate('/deliverables')} reduceMotion={reduceMotion} />
               <NavItem icon={<Shield size={19} />} active={isGovernanceActive} onClick={() => navigate('/governance')} reduceMotion={reduceMotion} />

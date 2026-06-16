@@ -14,7 +14,7 @@ import { AgentSuggestions } from '../components/Chat/AgentSuggestions';
 import { InlineChatResult } from '../components/Chat/InlineChatResult';
 import { TaskProgressSidebar } from '../components/Chat/TaskProgressSidebar';
 import type { ChatSession, Message } from '@org-ai/shared-types';
-import { DEPT_LABEL, DEPT_ACCENT, DEPARTMENTS } from '../constants/departments';
+import { DEPT_LABEL, DEPT_ACCENT, DEPARTMENTS, DEPT_CHARACTER } from '../constants/departments';
 
 interface InlineTask {
   id: string;           // バックエンドのタスクID
@@ -444,22 +444,31 @@ export default function ChatPage() {
                 <button
                   onClick={() => { setSelectedDept(null); setSelectedAgent(null); }}
                   className={`text-[10px] px-2.5 py-1 rounded-full transition-all ${
-                    !selectedDept ? 'bg-[#8b85ff] text-white font-semibold' : 'bg-white/60 text-[#8A8A8A] hover:bg-white'
+                    !selectedDept ? 'bg-accent text-white font-semibold' : 'glass-thin text-secondary hover:text-primary'
                   }`}
                 >
                   全部署
                 </button>
-                {DEPARTMENTS.map((d) => (
-                  <button
-                    key={d.key}
-                    onClick={() => { setSelectedDept(d.key); setSelectedAgent(null); }}
-                    className={`text-[10px] px-2.5 py-1 rounded-full transition-all ${
-                      selectedDept === d.key ? 'bg-[#8b85ff] text-white font-semibold' : 'bg-white/60 text-[#8A8A8A] hover:bg-white'
-                    }`}
-                  >
-                    {d.icon} {d.label}
-                  </button>
-                ))}
+                {DEPARTMENTS.map((d) => {
+                  const char = DEPT_CHARACTER[d.key];
+                  const active = selectedDept === d.key;
+                  return (
+                    <button
+                      key={d.key}
+                      onClick={() => { setSelectedDept(d.key); setSelectedAgent(null); }}
+                      className={`flex items-center gap-1 text-[10px] py-0.5 rounded-full transition-all ${
+                        char ? 'pl-0.5 pr-2.5' : 'px-2.5 py-1'
+                      } ${active ? 'bg-accent text-white font-semibold' : 'glass-thin text-secondary hover:text-primary'}`}
+                    >
+                      {char ? (
+                        <img src={char.image} alt="" className="w-5 h-5 rounded-full object-cover bg-muted" />
+                      ) : (
+                        <span>{d.icon}</span>
+                      )}
+                      {d.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -487,7 +496,7 @@ export default function ChatPage() {
       </AnimatePresence>
 
       {/* Main chat area */}
-      <div className="flex-1 flex flex-col min-w-0" style={{ background: 'linear-gradient(180deg, #fffcf7 0%, #faf5ef 100%)' }}>
+      <div className="flex-1 flex flex-col min-w-0 bg-canvas">
         {!id ? (
           /* Empty state - welcome screen */
           <div className="flex-1 flex items-center justify-center p-6">
@@ -497,21 +506,21 @@ export default function ChatPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4 }}
             >
-              <div className="w-16 h-16 bg-[#8b85ff]/10 rounded-3xl flex items-center justify-center mx-auto mb-5">
-                <Sparkles size={28} className="text-[#8b85ff]" />
+              <div className="w-16 h-16 bg-accent-soft rounded-2xl flex items-center justify-center mx-auto mb-5">
+                <Sparkles size={28} className="text-accent" />
               </div>
-              <p className="text-xl font-bold text-[#2D2D2D] mb-2">AIエージェントに相談する</p>
-              <p className="text-sm text-[#8A8A8A] mb-3 leading-relaxed">
+              <p className="text-xl font-bold text-primary mb-2">AIエージェントに相談する</p>
+              <p className="text-sm text-secondary mb-3 leading-relaxed">
                 各部署のAIエージェントが業務をサポートします。<br />
                 メール作成、リサーチ、データ分析、SNS投稿まで。
               </p>
-              <p className="text-xs text-[#BCBCBC] mb-8 max-w-sm mx-auto">
+              <p className="text-xs text-text-muted mb-8 max-w-sm mx-auto">
                 ここは会話・相談向けです。長い成果物パイプラインはメニューの「タスク」からどうぞ。
               </p>
               <div className="flex gap-3 justify-center flex-wrap">
                 <motion.button
                   onClick={createSession}
-                  className="bg-[#8b85ff] hover:bg-[#7c76f2] text-white text-sm font-semibold px-6 py-3 rounded-2xl transition-all shadow-md shadow-glow-primary flex items-center gap-2"
+                  className="bg-accent hover:bg-accent-hover text-white text-sm font-semibold px-6 py-3 rounded-lg transition-all shadow-elev-2 flex items-center gap-2"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
@@ -519,35 +528,49 @@ export default function ChatPage() {
                 </motion.button>
               </div>
 
-              {/* Quick action cards */}
+              {/* Quick action cards — 各部署のキャラクター */}
               <div className="grid grid-cols-2 gap-3 mt-8">
-                {DEPARTMENTS.map((d) => (
-                  <motion.button
-                    key={d.key}
-                    onClick={async () => {
-                      setSelectedDept(d.key);
-                      await createSession();
-                    }}
-                    className="bg-white rounded-2xl p-4 text-left border border-[#eae8e3] hover:border-[#8b85ff]/30 transition-all"
-                    whileHover={{ scale: 1.02, y: -2 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <span className="text-xl">{d.icon}</span>
-                    <p className="text-xs font-semibold text-[#2D2D2D] mt-2">{d.label}</p>
-                    <p className="text-[10px] text-[#8A8A8A] mt-0.5">AIに相談</p>
-                  </motion.button>
-                ))}
+                {DEPARTMENTS.map((d) => {
+                  const char = DEPT_CHARACTER[d.key];
+                  return (
+                    <motion.button
+                      key={d.key}
+                      onClick={async () => {
+                        setSelectedDept(d.key);
+                        await createSession();
+                      }}
+                      className="glass-regular rounded-lg p-3 text-left flex items-center gap-3 hover:border-accent transition-all"
+                      whileHover={{ scale: 1.02, y: -2 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      {char ? (
+                        <img
+                          src={char.image}
+                          alt={char.name}
+                          className="w-12 h-12 rounded-full object-cover bg-muted flex-shrink-0"
+                          style={{ boxShadow: `0 0 0 2px ${DEPT_ACCENT[d.key]}33` }}
+                        />
+                      ) : (
+                        <span className="text-2xl">{d.icon}</span>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-primary truncate">{d.label}</p>
+                        <p className="text-[10px] text-secondary truncate">{char?.name ?? 'AIに相談'}</p>
+                      </div>
+                    </motion.button>
+                  );
+                })}
               </div>
             </motion.div>
           </div>
         ) : (
           <>
             {/* Top bar */}
-            <div className="flex items-center gap-2 px-4 py-2.5 bg-white/60 backdrop-blur-sm border-b border-[#eae8e3] flex-shrink-0">
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-elevated border-b border-border flex-shrink-0">
               {!showSidebar && (
                 <button
                   onClick={() => setShowSidebar(true)}
-                  className="w-8 h-8 rounded-xl bg-[#f5f5f0] flex items-center justify-center text-[#8A8A8A] hover:text-[#2D2D2D] transition-colors"
+                  className="w-8 h-8 rounded-md bg-muted flex items-center justify-center text-secondary hover:text-primary transition-colors"
                 >
                   <PanelLeftOpen size={15} />
                 </button>
@@ -555,15 +578,23 @@ export default function ChatPage() {
               <div className="flex-1 flex items-center gap-2 min-w-0">
                 {selectedDept && (
                   <>
+                    {DEPT_CHARACTER[selectedDept] && (
+                      <img
+                        src={DEPT_CHARACTER[selectedDept].image}
+                        alt={DEPT_CHARACTER[selectedDept].name}
+                        className="w-7 h-7 rounded-full object-cover bg-muted flex-shrink-0"
+                        style={{ boxShadow: `0 0 0 2px ${DEPT_ACCENT[selectedDept]}33` }}
+                      />
+                    )}
                     <span
-                      className="text-xs font-semibold px-3 py-1 rounded-full"
-                      style={{ backgroundColor: `${DEPT_ACCENT[selectedDept]}15`, color: DEPT_ACCENT[selectedDept] }}
+                      className="text-xs font-semibold px-2.5 py-1 rounded-full"
+                      style={{ backgroundColor: `${DEPT_ACCENT[selectedDept]}1A`, color: DEPT_ACCENT[selectedDept] }}
                     >
-                      {DEPT_LABEL[selectedDept]}
+                      {DEPT_CHARACTER[selectedDept]?.name ?? DEPT_LABEL[selectedDept]}
                     </span>
                     <button
                       onClick={() => { setSelectedDept(null); setSelectedAgent(null); }}
-                      className="text-[#BCBCBC] hover:text-[#8A8A8A] transition-colors"
+                      className="text-text-muted hover:text-secondary transition-colors"
                     >
                       <X size={14} />
                     </button>
@@ -573,11 +604,11 @@ export default function ChatPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setShowTaskSidebar(!showTaskSidebar)}
-                  className="w-8 h-8 rounded-xl bg-[#f5f5f0] flex items-center justify-center text-[#8A8A8A] hover:text-[#8b85ff] transition-colors relative"
+                  className="w-8 h-8 rounded-md bg-muted flex items-center justify-center text-secondary hover:text-accent transition-colors relative"
                 >
                   <ClipboardList size={15} />
                   {inlineTasks.filter((t) => t.status === 'executing').length > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-[#8b85ff] rounded-full text-[8px] text-white flex items-center justify-center font-bold">
+                    <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-accent rounded-full text-[8px] text-white flex items-center justify-center font-bold">
                       {inlineTasks.filter((t) => t.status === 'executing').length}
                     </span>
                   )}

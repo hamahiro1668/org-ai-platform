@@ -10,6 +10,7 @@ import TaskManagerPage from './pages/TaskManagerPage';
 import DeliverablesPage from './pages/DeliverablesPage';
 import SettingsPage from './pages/SettingsPage';
 import Layout from './components/Layout';
+import { DashboardLayout } from './components/Dashboard/DashboardLayout';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token);
@@ -22,13 +23,21 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route
+        path="/"
+        element={
+          <RequireAuth>
+            <DashboardLayout />
+          </RequireAuth>
+        }
+      />
+      <Route
         element={
           <RequireAuth>
             <Layout />
           </RequireAuth>
         }
       >
-        <Route index element={<HomePage />} />
+        <Route path="dashboard" element={<HomePage />} />
         <Route path="chat" element={<ChatPage />} />
         <Route path="chat/:id" element={<ChatPage />} />
         <Route path="agents" element={<AgentsPage />} />
