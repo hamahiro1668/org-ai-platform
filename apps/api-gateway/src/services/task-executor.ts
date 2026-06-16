@@ -81,6 +81,22 @@ export async function triggerN8nWorkflowByPath(
     select: { plan: true },
   });
   const gatewayUrl = process.env.API_GATEWAY_URL ?? 'http://localhost:4000';
+  const plan = org?.plan ?? 'STARTER';
+  // エージェント workflow は Code ノードを持たない（WAF 回避）ため、/llm/chat の
+  // リクエスト本文を gateway 側で組み立てて llmBody (JSON文字列) として渡す。
+  // n8n の AI Engine ノードはこれをそのまま /llm/chat へ転送する。
+  const llmBody = systemPrompt
+    ? JSON.stringify({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: task.input },
+        ],
+        department: task.department,
+        org_id: task.orgId,
+        plan,
+        json_mode: false,
+      })
+    : undefined;
   try {
     const res = await fetch(`${N8N_URL}/webhook/${path}`, {
       method: 'POST',
@@ -97,7 +113,8 @@ export async function triggerN8nWorkflowByPath(
         department: task.department,
         taskType: task.taskType ?? null,
         ...(systemPrompt ? { systemPrompt } : {}),
-        plan: org?.plan ?? 'STARTER',
+        ...(llmBody ? { llmBody } : {}),
+        plan,
         callbackUrl: `${gatewayUrl}/api/webhooks/n8n/task-complete`,
         logUrl: `${gatewayUrl}/api/webhooks/n8n/task-log`,
         aiEngineUrl: process.env.AI_ENGINE_URL ?? 'http://localhost:8000',

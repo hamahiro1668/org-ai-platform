@@ -65,20 +65,11 @@ export function buildAgentWorkflowJson(agent: AgentWorkflowInput): Record<string
   const path = agentWebhookPath(agent.id);
   const tokenExpr = "={{ $env.N8N_WEBHOOK_AUTH_TOKEN || 'org-ai-n8n-secret-token' }}";
 
-  const buildPromptCode = [
-    "const rd = $('Webhook').item.json.body;",
-    `const systemPrompt = (rd.systemPrompt && String(rd.systemPrompt)) || ${JSON.stringify(
-      agent.instructions,
-    )};`,
-    'const messages = [',
-    '  { role: "system", content: systemPrompt },',
-    '  { role: "user", content: rd.input }',
-    '];',
-    'return [{ json: { messages, department: ' +
-      `${JSON.stringify(agent.department)}` +
-      ", org_id: rd.orgId, plan: rd.plan ?? 'STARTER', aiEngineUrl: rd.aiEngineUrl ?? 'http://ai-engine:8000', useJsonMode: false } }];",
-  ].join('\n');
-
+  // 重要: n8n は Render の WAF (Cloudflare 系) 配下にあり、Code ノードの複雑な jsCode を含む
+  // ワークフロー作成リクエストは「Blocked」403 で弾かれる。そのため Code ノードを使わず、
+  // LLM リクエスト本文 (messages 等) は gateway 側で組み立てて webhook body の `llmBody`
+  // (JSON 文字列) として流す。作成 payload には単純な式しか含めない（WAF 回避）。
+  // ノード構成: Webhook → AI Engine Chat (/llm/chat に llmBody をそのまま POST) → Callback。
   return {
     name: agentWorkflowName(agent.id),
     nodes: [
@@ -98,55 +89,22 @@ export function buildAgentWorkflowJson(agent: AgentWorkflowInput): Record<string
       },
       {
         parameters: {
-          url: '={{ $json.body.logUrl }}',
-          sendHeaders: true,
-          headerParameters: {
-            parameters: [
-              { name: 'Content-Type', value: 'application/json' },
-              { name: 'x-webhook-token', value: tokenExpr },
-            ],
-          },
-          sendBody: true,
-          bodyParameters: {
-            parameters: [
-              { name: 'taskId', value: '={{ $json.body.taskId }}' },
-              { name: 'message', value: `エージェント「${agent.name}」ワークフロー開始` },
-              { name: 'level', value: 'INFO' },
-            ],
-          },
-          options: {},
-        },
-        id: 'log-start',
-        name: 'Log Start',
-        type: 'n8n-nodes-base.httpRequest',
-        typeVersion: 4,
-        position: [460, 300],
-      },
-      {
-        parameters: { jsCode: buildPromptCode },
-        id: 'build-prompt',
-        name: 'Build Prompt',
-        type: 'n8n-nodes-base.code',
-        typeVersion: 2,
-        position: [680, 300],
-      },
-      {
-        parameters: {
           method: 'POST',
-          url: '={{ $json.aiEngineUrl }}/llm/chat',
+          url: '={{ $json.body.aiEngineUrl }}/llm/chat',
           sendHeaders: true,
           headerParameters: { parameters: [{ name: 'Content-Type', value: 'application/json' }] },
           sendBody: true,
           contentType: 'raw',
           rawContentType: 'application/json',
-          body: '={{ JSON.stringify({ messages: $json.messages, department: $json.department, org_id: $json.org_id, plan: $json.plan, json_mode: $json.useJsonMode }) }}',
+          // gateway が組み立て済みの /llm/chat リクエスト JSON 文字列をそのまま転送
+          body: '={{ $json.body.llmBody }}',
           options: {},
         },
         id: 'ai-chat',
         name: 'AI Engine Chat',
         type: 'n8n-nodes-base.httpRequest',
         typeVersion: 4,
-        position: [900, 300],
+        position: [520, 300],
       },
       {
         parameters: {
@@ -173,13 +131,11 @@ export function buildAgentWorkflowJson(agent: AgentWorkflowInput): Record<string
         name: 'Callback (Done)',
         type: 'n8n-nodes-base.httpRequest',
         typeVersion: 4,
-        position: [1120, 300],
+        position: [800, 300],
       },
     ],
     connections: {
-      Webhook: { main: [[{ node: 'Log Start', type: 'main', index: 0 }]] },
-      'Log Start': { main: [[{ node: 'Build Prompt', type: 'main', index: 0 }]] },
-      'Build Prompt': { main: [[{ node: 'AI Engine Chat', type: 'main', index: 0 }]] },
+      Webhook: { main: [[{ node: 'AI Engine Chat', type: 'main', index: 0 }]] },
       'AI Engine Chat': { main: [[{ node: 'Callback (Done)', type: 'main', index: 0 }]] },
     },
     settings: { executionOrder: 'v1', saveManualExecutions: true },
