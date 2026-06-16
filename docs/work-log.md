@@ -88,6 +88,12 @@
 - **本番E2E成功 ✅**: register→作成（n8nStatus=ACTIVE）→実行→ **Webhook → AI Engine Chat → Callback(POST) → task DONE**（実Claude出力）。n8n executions API で `status=success` を確認。
 - n8n がスリープ中は gateway の retry→AI Engineフォールバックで実行（DBが真実の源のため必ず完走）。
 
+### Phase 10: n8n常時稼働 + 効率化ダッシュボード + UIクリーン刷新（ユーザー確認: 有料$7 / タスク種別プリセット / クリーン&プロフェッショナル）
+- **n8n常時稼働**: `org-ai-n8n-web` を Render Starter にしようとしたが API が `Plan requires payment information on file` で 400。→ Render に支払い方法登録後に `serviceDetails.plan=starter` を PATCH（ユーザー操作待ち）。
+- **効率化ダッシュボードBE**: `GET /api/dashboard/efficiency`（`routes/dashboard.ts`）。タスク種別プリセット(分)で完了タスクを集計→今日/今週/累計 + 7日トレンド + 部署別、1日25%(=120分/8h)目標。JST日境界。本番デプロイ済み・E2E確認（agent実行1件→today 30分/25%）。
+- **UIクリーン刷新（light/dark）**: `tailwind.config.js`/`index.css` をCSS変数駆動に（ニュートラルslate + indigo accent、flat surface、glass-*/liquid-* をフラット化、虹排除、radius縮小）。`AmbientBackground` を微アクセントグロー+グリッドに。`themeStore` + ナビにダークトグル、`main.tsx` で先行適用(既定light)。`HomePage`(新ホーム=効率化ダッシュボード) を `/` に。`BottomNav` 刷新(indigo/ニュートラル/トグル、キャラ画像撤去)、`GlassButton` primary を単色accentに。`DashboardLayout`(旧カルーセル)は不使用化。
+- 検証: `vite build` 通過、agent-browser でライト/ダーク両方の見た目確認、Vercelプレビュー `flow-43g1hbj3n` デプロイ、ダッシュボードAPI本番反映(404→401)。
+
 ### 既知の制約 / メモ
 - gateway の Render ビルドは `tsc --noCheck`（環境固有の @types/node 解決問題回避）。型安全は `npm run typecheck` と vitest で担保。根本原因（Render の monorepo hoisting）が解決すれば `tsc` に戻してよい。
 - keepalive.yml は workflow スコープの都合で `hamahiro1668` 側 main に未反映。GitHub UI から追加するか、scope 付きトークンで push 可能。
