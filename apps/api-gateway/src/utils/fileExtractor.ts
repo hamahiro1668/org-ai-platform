@@ -13,11 +13,22 @@ export interface ExtractResult {
   extractor: 'text' | 'pdf' | 'docx' | 'unsupported';
 }
 
-export async function extractText(storagePath: string, mimeType: string): Promise<ExtractResult> {
+export interface ExtractOptions {
+  /** 抽出する最大文字数。RAG インデックス用に大きな値を渡せる。既定 20,000。 */
+  maxChars?: number;
+}
+
+export async function extractText(
+  storagePath: string,
+  mimeType: string,
+  options: ExtractOptions = {},
+): Promise<ExtractResult> {
+  const maxChars = options.maxChars ?? MAX_EXTRACT_CHARS;
+
   if (mimeType === 'text/plain' || mimeType === 'text/csv') {
     const buf = await readFile(storagePath);
     const text = buf.toString('utf-8');
-    return trim(text, 'text');
+    return trim(text, 'text', maxChars);
   }
 
   if (mimeType === 'application/pdf') {
@@ -27,7 +38,7 @@ export async function extractText(storagePath: string, mimeType: string): Promis
       const parser = mod.default ?? mod;
       const buf = await readFile(storagePath);
       const out = await parser(buf);
-      return trim(String(out.text ?? ''), 'pdf');
+      return trim(String(out.text ?? ''), 'pdf', maxChars);
     } catch (e) {
       return unsupported(`PDF抽出に失敗しました: ${(e as Error).message}`);
     }
@@ -38,7 +49,7 @@ export async function extractText(storagePath: string, mimeType: string): Promis
       const mod = await optionalImport('mammoth');
       if (!mod) return unsupported('mammoth がインストールされていません (npm i mammoth)');
       const out = await mod.extractRawText({ path: storagePath });
-      return trim(String(out.value ?? ''), 'docx');
+      return trim(String(out.value ?? ''), 'docx', maxChars);
     } catch (e) {
       return unsupported(`DOCX抽出に失敗しました: ${(e as Error).message}`);
     }
@@ -47,10 +58,10 @@ export async function extractText(storagePath: string, mimeType: string): Promis
   return unsupported(`このMIMEタイプ(${mimeType})からのテキスト抽出は未対応です`);
 }
 
-function trim(text: string, extractor: ExtractResult['extractor']): ExtractResult {
-  const truncated = text.length > MAX_EXTRACT_CHARS;
+function trim(text: string, extractor: ExtractResult['extractor'], maxChars: number): ExtractResult {
+  const truncated = text.length > maxChars;
   return {
-    text: truncated ? text.slice(0, MAX_EXTRACT_CHARS) : text,
+    text: truncated ? text.slice(0, maxChars) : text,
     truncated,
     extractor,
   };

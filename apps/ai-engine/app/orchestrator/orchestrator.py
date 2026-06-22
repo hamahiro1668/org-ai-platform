@@ -26,6 +26,7 @@ class Orchestrator:
         org_id: str,
         plan: str = "STARTER",
         department: Optional[str] = None,
+        context: Optional[str] = None,
     ) -> OrchestrateResponse:
         if department and department in _agents:
             resolved_dept = department
@@ -37,6 +38,7 @@ class Orchestrator:
             user_message=user_message,
             org_id=org_id,
             plan=plan,
+            context=context,
         )
 
         # 監査ログを非同期で記録（失敗してもレスポンスは返す）

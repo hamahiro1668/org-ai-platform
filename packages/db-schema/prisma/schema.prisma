@@ -44,13 +44,14 @@ model ChatSession {
 }
 
 model Message {
-  id         String      @id @default(cuid())
+  id         String            @id @default(cuid())
   sessionId  String
-  session    ChatSession @relation(fields: [sessionId], references: [id])
+  session    ChatSession       @relation(fields: [sessionId], references: [id])
   role       String
   content    String
   department String?
-  createdAt  DateTime    @default(now())
+  createdAt  DateTime          @default(now())
+  embedding  MessageEmbedding?
 }
 
 model Task {
@@ -122,6 +123,38 @@ model UploadedFile {
   mimeType     String
   sizeBytes    Int
   createdAt    DateTime     @default(now())
+  chunks       FileChunk[]
+}
+
+/// RAG: アップロードファイルをチャンク分割し埋め込みベクトルを保持する。
+/// embedding は pgvector の vector 型（Prisma 未対応のため Unsupported）。読み書きは $queryRaw / $executeRaw。
+model FileChunk {
+  id         String                  @id @default(cuid())
+  orgId      String
+  fileId     String
+  file       UploadedFile            @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  chunkIndex Int
+  content    String
+  embedding  Unsupported("vector(1024)")?
+  createdAt  DateTime                @default(now())
+
+  @@index([orgId])
+  @@index([fileId])
+}
+
+/// RAG: チャットメッセージの埋め込み（過去履歴の横断参照用）。content を非正規化保持。
+model MessageEmbedding {
+  id        String                       @id @default(cuid())
+  orgId     String
+  messageId String                       @unique
+  message   Message                      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  sessionId String
+  role      String
+  content   String
+  embedding Unsupported("vector(1024)")?
+  createdAt DateTime                     @default(now())
+
+  @@index([orgId])
 }
 
 model ScheduledTask {

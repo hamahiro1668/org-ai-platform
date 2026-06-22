@@ -29,6 +29,8 @@ class OrchestateRequest(BaseModel):
     session_id: str = ""
     plan: str = "STARTER"
     department: Optional[str] = None
+    # RAG: アップロードファイル/過去チャットから取得した根拠ブロック（任意）
+    context: Optional[str] = None
 
 
 class OrchestrateResponse(BaseModel):

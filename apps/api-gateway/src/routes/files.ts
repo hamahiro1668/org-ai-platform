@@ -6,6 +6,7 @@ import { pipeline } from 'stream/promises';
 import { prisma } from '../utils/prisma';
 import { requireAuth } from '../middleware/auth';
 import { extractText } from '../utils/fileExtractor';
+import { indexFile } from '../services/rag';
 
 const ALLOWED_DEPARTMENTS = new Set(['SALES', 'MARKETING', 'ACCOUNTING', 'ANALYTICS', 'GENERAL']);
 
@@ -61,6 +62,11 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
         sizeBytes: size,
       },
     });
+
+    // RAG: アップロード応答はブロックせず、バックグラウンドで抽出→チャンク→埋め込み→索引
+    void indexFile(file.id, file.orgId, file.storagePath, file.mimeType).catch((e) =>
+      request.log.error({ err: e, fileId: file.id }, '[files] RAG indexing failed'),
+    );
 
     return reply.code(201).send({ success: true, data: { id: file.id, originalName: file.originalName, mimeType: file.mimeType, sizeBytes: file.sizeBytes } });
   });

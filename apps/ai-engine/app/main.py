@@ -105,6 +105,7 @@ async def orchestrate(request: OrchestateRequest) -> OrchestrateResponse:
             org_id=request.org_id,
             plan=request.plan,
             department=request.department,
+            context=request.context,
         )
     except RuntimeError as e:
         msg = str(e)
@@ -130,10 +131,15 @@ async def orchestrate_stream(request: OrchestateRequest) -> StreamingResponse:
 
     # エージェントのシステムプロンプトを取得（セキュリティ核 + エージェント化提案を含む統一ビルダ経由）
     from app.orchestrator.orchestrator import _agents
-    from app.agents.base import _build_system_prompt, _wrap_user_message
+    from app.agents.base import _build_system_prompt, _wrap_user_message, GROUNDING_INSTRUCTION
     agent = _agents.get(resolved_dept, _agents["GENERAL"])
     system_content = _build_system_prompt(agent.system_prompt, getattr(agent, "security_extra", ""))
+    has_context = bool(request.context and request.context.strip())
+    if has_context:
+        system_content = system_content + "\n\n" + GROUNDING_INSTRUCTION
     messages = [ChatMessage(role="system", content=system_content)]
+    if has_context:
+        messages.append(ChatMessage(role="system", content=f"【参考資料】\n{request.context.strip()}"))
     messages.append(ChatMessage(role="user", content=_wrap_user_message(request.message)))
 
     # PII スクリーニング

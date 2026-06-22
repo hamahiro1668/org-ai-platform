@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../utils/prisma';
 import { requireAuth } from '../middleware/auth';
+import { retrieveContext, indexMessage } from '../services/rag';
 
 const N8N_CLOUD_URL = process.env.N8N_CLOUD_URL ?? 'https://hamahiro.app.n8n.cloud';
 const N8N_API_KEY = process.env.N8N_API_KEY ?? '';
@@ -64,6 +65,8 @@ async function generateViaN8n(payload: {
 const sendMessageSchema = z.object({
   content: z.string().min(1),
   department: z.string().optional(),
+  // RAG: グラウンディング対象として明示されたアップロードファイル
+  fileIds: z.array(z.string()).optional(),
 });
 
 export async function chatRoutes(app: FastifyInstance): Promise<void> {
@@ -187,6 +190,16 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       aiResponse = n8nResult;
       console.log('[chat] responded via n8n cloud');
     } else {
+      let ragContext: string | undefined;
+      try {
+        const retrieved = await retrieveContext({
+          orgId: payload.orgId,
+          query: result.data.content,
+          fileIds: result.data.fileIds,
+        });
+        if (retrieved) ragContext = retrieved.block;
+      } catch { /* RAG はベストエフォート */ }
+
       try {
         const res = await fetch(`${aiEngineUrl}/orchestrate`, {
           method: 'POST',
@@ -197,6 +210,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
             session_id: id,
             department: result.data.department ?? null,
             plan,
+            context: ragContext,
           }),
         });
         if (!res.ok) {
@@ -228,6 +242,10 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
         department: aiResponse.department,
       },
     });
+
+    // RAG: 履歴の横断参照のため索引（fire-and-forget）
+    void indexMessage(userMessage.id, payload.orgId, id, 'user', result.data.content).catch(() => null);
+    void indexMessage(assistantMessage.id, payload.orgId, id, 'assistant', aiResponse.content).catch(() => null);
 
     if (!session.title) {
       const title = result.data.content.slice(0, 30);
@@ -283,6 +301,17 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     let fullContent = '';
     let department = body.data.department ?? 'GENERAL';
 
+    // RAG: 関連するファイル/過去チャットを取得して根拠ブロックを作る（無効時/該当なしは undefined）
+    let ragContext: string | undefined;
+    try {
+      const retrieved = await retrieveContext({
+        orgId: payload.orgId,
+        query: body.data.content,
+        fileIds: body.data.fileIds,
+      });
+      if (retrieved) ragContext = retrieved.block;
+    } catch { /* RAG はベストエフォート */ }
+
     try {
       const res = await fetch(`${aiEngineUrl}/orchestrate/stream`, {
         method: 'POST',
@@ -293,6 +322,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
           session_id: id,
           department: body.data.department ?? null,
           plan,
+          context: ragContext,
         }),
       });
 
@@ -355,6 +385,10 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     const assistantMessage = await prisma.message.create({
       data: { sessionId: id, role: 'assistant', content: fullContent, department },
     });
+
+    // RAG: 履歴の横断参照のため、今回のやり取りを索引（fire-and-forget・ストリーム終了を待たせない）
+    void indexMessage(userMessage.id, payload.orgId, id, 'user', body.data.content).catch(() => null);
+    void indexMessage(assistantMessage.id, payload.orgId, id, 'assistant', fullContent).catch(() => null);
 
     reply.raw.write(`data: ${JSON.stringify({ type: 'done', data: assistantMessage })}\n\n`);
     reply.raw.end();

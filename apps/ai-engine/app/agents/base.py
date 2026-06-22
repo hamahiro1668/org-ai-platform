@@ -16,6 +16,11 @@ AGENTIZATION_HINT = """【エージェント化のさりげない提案】
 - ユーザーの相談が「繰り返し発生しそうな定型業務」だと明確に判断できる場合に限り、回答の最後に一言だけ、その作業を再利用可能な「エージェント」として登録すれば次回以降ワンタップで自動実行できる旨を、押し付けない自然なトーンで添えてよい。
 - 一度きりの相談・雑談・まだ要件が固まっていない段階では提案しないこと。毎回しつこく勧めないこと。"""
 
+GROUNDING_INSTRUCTION = """【根拠資料の利用（ハルシネーション防止）】
+- 直後に与えられる「参考資料」（アップロードされたファイルや過去のやり取りの抜粋）は、ユーザーの組織の実データである。回答は可能な限りこの資料に基づくこと。
+- 資料に書かれていない事実を勝手に断定・創作しないこと。資料から判断できない場合は「資料には記載がありません」と率直に伝えること。
+- 資料を根拠に述べる場合は、どの出典（ファイル名など）に基づくかを簡潔に示すこと。"""
+
 
 def _sanitize_history(history: List[ChatMessage]) -> List[ChatMessage]:
     """Allow only user/assistant turns; cap length to reduce abuse."""
@@ -55,11 +60,16 @@ class BaseAgent:
         org_id: str,
         plan: str = "STARTER",
         history: Optional[List[ChatMessage]] = None,
+        context: Optional[str] = None,
     ) -> Tuple[LLMResponse, bool, List[str]]:
         system_content = _build_system_prompt(self.system_prompt, self.security_extra)
+        if context and context.strip():
+            system_content = system_content + "\n\n" + GROUNDING_INSTRUCTION
         messages: List[ChatMessage] = [
             ChatMessage(role="system", content=system_content),
         ]
+        if context and context.strip():
+            messages.append(ChatMessage(role="system", content=f"【参考資料】\n{context.strip()}"))
         if history:
             messages.extend(_sanitize_history(history))
         messages.append(ChatMessage(role="user", content=_wrap_user_message(user_message)))

@@ -19,6 +19,8 @@
     "ajv-formats": "^3.0.1",
     "bcryptjs": "^2.4.3",
     "fastify": "^4.26.0",
+    "mammoth": "^1.8.0",
+    "pdf-parse": "1.1.1",
     "zod": "^3.22.0"
   },
   "devDependencies": {

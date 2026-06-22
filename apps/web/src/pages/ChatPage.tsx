@@ -149,8 +149,9 @@ export default function ChatPage() {
   const sendMessage = async () => {
     if (!input.trim() || sending || !id) return;
     setSending(true);
-    // 添付ファイルがあればテキストに追記
+    // 添付ファイルがあればテキストに追記（RAG 用に fileIds も別途送る）
     let text = input.trim();
+    const fileIds = attachedFiles.map((f) => f.id);
     if (attachedFiles.length > 0) {
       const fileInfo = attachedFiles.map((f) => `[添付: ${f.name} (ID:${f.id})]`).join('\n');
       text = `${text}\n\n${fileInfo}`;
@@ -178,7 +179,11 @@ export default function ChatPage() {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ content: text, department: selectedDept ?? undefined }),
+        body: JSON.stringify({
+          content: text,
+          department: selectedDept ?? undefined,
+          fileIds: fileIds.length > 0 ? fileIds : undefined,
+        }),
       });
 
       if (!res.ok || !res.body) {
