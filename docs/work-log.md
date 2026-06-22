@@ -100,3 +100,32 @@
 - n8n 専用ワークフロー生成を使うには gateway env に `N8N_API_KEY` が必要（現状未設定→ agent は AI Engine フォールバックで実行＝動作する）。
 - ガバナンス統計 UI（旧 DashboardPage の棒グラフ）は移植せず破棄。`/api/agents/stats` エンドポイントは残置（将来 GovernancePage へ移植可能）。
 - vercel-plugin の posttooluse バリデータが n8n の "workflow" 命名や Node の setTimeout/fetch を Vercel Workflow DevKit と誤検出するが、本コードは n8n REST + Fastify/Node 実行であり全て false positive。意図的に無視。
+
+---
+
+## 2026-06-22 — チャット起点の成果物生成 + RAG + 外部連携（ブランチ `deploy-prod`）
+
+計画通り 3 フェーズを実装。整合性チェック（並列5エージェント + ライブ n8n WAF プローブ）で計画の前提を検証してから着手。
+
+### Phase C: エージェント化 CTA ✅（commit d230d2d）
+- ai-engine: ストリーム経路を `_build_system_prompt` 経由に変更（SECURITY_CORE + `AGENTIZATION_HINT` + `<user_query>` ラップを付与＝従来ストリームが SECURITY_CORE を飛ばしていた問題も解消）。
+- gateway: `POST /chat/sessions/:id/suggest` を新設。既存 `/plan/agent` を会話全体に再利用し、ユーザー発話2往復以上＋confidence>=0.6 のときだけエージェント草案を返す（失敗時は常に suggest:false でチャットを阻害しない）。
+- web: 会話が定型業務に育つと assistant メッセージ下に `AgentCtaCard`。`CreateAgentModal` を草案（名前/指示/部署）でプリフィル（`initialName`/`initialInstructions`/`initialDepartment` を追加、毎回フレッシュにマウント）。「あとで」でセッション中は抑制。
+
+### Phase A: RAG（pgvector + 埋め込み）✅（commit a34d3f9）
+- DB: マイグレーション `20260622000000_add_pgvector_rag`（`CREATE EXTENSION vector` + `FileChunk`/`MessageEmbedding`(vector(1024)) + FK + HNSW cosine index）。Neon は pgvector 0.8.0 提供を確認。schema は `Unsupported("vector(1024)")`、読み書きは `$queryRaw`/`$executeRaw`。
+- gateway: `services/embeddings.ts`（Voyage 既定 / OpenAI 代替・1024次元固定・`EMBEDDING_API_KEY` 未設定なら no-op）、`services/rag.ts`（chunk/indexFile/indexMessage/retrieveContext＝org スコープのコサイン類似 + 上位K + 文字予算 + 出典ラベル）。`fileExtractor` に `maxChars` 追加（索引は全文）。`files.ts` でアップロード時に索引（fire-and-forget）。`chat.ts` ストリーム/非ストリーム両方で関連根拠を取得し `context` として ai-engine に渡し、応答後に当該往復を索引。`pdf-parse@1.1.1`(pin)/`mammoth` を依存追加。
+- ai-engine: `OrchestateRequest.context`、`GROUNDING_INSTRUCTION`（資料に基づき回答・無い事は「記載なし」・出典明記）を両経路で注入。
+- **要・本番有効化**: `EMBEDDING_API_KEY`（Voyage 推奨）を gateway Render env に設定するまで RAG は休眠（チャットは従来通り）。
+
+### Phase B: Google/Slack 成果物 capability ✅（commit 7acc818）
+- seed-capabilities: `create_google_doc`/`create_google_sheet`/`create_google_slides` を追加（provider は `googledocs`/`googlesheets`/`googleslides`＝n8n credential **type** に substring 一致させ resolver の接続判定を通す）。`notify_slack` を成果物投稿向けに拡張。
+- n8n: `cap-create_google_{doc,sheet,slides}.json` + `cap-notify_slack.json`。WAF 安全形（Webhook headerAuth/responseNode → provider ノード → respondToWebhook の式でエンベロープ生成・Code ノード無し）。
+- web: 入力欄上に `DeliverableBar`（ドキュメント/スプレッドシート/スライド/Slack）。`createDeliverable()` が直近の AI 回答を `POST /api/capabilities/resolve` に送り（resolver が cap+引数を推論実行）、URL かNEEDS_AUTH 案内をインラインメッセージ表示。
+- `docs/oauth-setup.md`: Google Cloud + Slack app + n8n クレデンシャル接続 + 取込 + 検証の手順。
+- **要・本番有効化**: `docs/oauth-setup.md` に沿って n8n に Google/Slack OAuth を接続するまで各 capability は NEEDS_AUTH（チャットでは接続案内を表示）。ノードのパラメータはテンプレ＝接続後にエディタで一度確認推奨。
+
+### デプロイ準備
+- 検証: ai-engine `py_compile`、gateway `tsc --noEmit`、`prisma validate`、`vite build`、cap JSON parse すべて通過。
+- `render.yaml`: gateway は `npm install`（ci ではない）＝新依存は自動解決。`startCommand` に `prisma migrate deploy` あり＝pgvector マイグレーションは次回デプロイで自動適用（Neon の role は拡張作成可）。
+- **未実施（要・明示承認）**: `hamahiro1668/main` への push → Render 自動デプロイ（migrate + 依存 install）、Vercel フロント本番デプロイ、gateway env に `EMBEDDING_API_KEY` 追加。
