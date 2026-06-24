@@ -8,11 +8,19 @@ export interface Folder {
   itemIds: string[]; // ordered task IDs within this folder
 }
 
+export type Importance = 'high' | 'mid' | 'low';
+
 interface DeliverablesState {
   folders: Folder[];
   activeFolderId: string;
   deptFilter: string | null;
   typeFilter: string | null;
+
+  // 重要度: AI 推定値 (importance) と手動上書き (importanceOverride)。実効値は override ?? importance ?? 'mid'。
+  importance: Record<string, Importance>;
+  importanceOverride: Record<string, Importance>;
+  setImportanceBatch: (map: Record<string, Importance>) => void;
+  cycleImportance: (id: string) => void; // high -> mid -> low -> (AI値に戻す)
 
   setActiveFolder: (id: string) => void;
   setDeptFilter: (dept: string | null) => void;
@@ -44,6 +52,23 @@ export const useDeliverablesStore = create<DeliverablesState>()(
       activeFolderId: 'all',
       deptFilter: null,
       typeFilter: null,
+      importance: {},
+      importanceOverride: {},
+
+      setImportanceBatch: (map) =>
+        set((state) => ({ importance: { ...state.importance, ...map } })),
+
+      cycleImportance: (id) =>
+        set((state) => {
+          const order: Importance[] = ['high', 'mid', 'low'];
+          const current = state.importanceOverride[id] ?? state.importance[id] ?? 'mid';
+          const next = order[(order.indexOf(current) + 1) % order.length];
+          const override = { ...state.importanceOverride };
+          // 一周して AI 推定値に戻ったら override を解除
+          if (state.importance[id] && next === state.importance[id]) delete override[id];
+          else override[id] = next;
+          return { importanceOverride: override };
+        }),
 
       setActiveFolder: (id) => set({ activeFolderId: id }),
       setDeptFilter: (dept) => set({ deptFilter: dept }),

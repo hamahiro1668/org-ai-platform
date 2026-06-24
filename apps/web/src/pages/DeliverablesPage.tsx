@@ -12,14 +12,14 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable';
 import { motion } from 'framer-motion';
-import { Package, Sparkles } from 'lucide-react';
+import { Package, Sparkles, Share2, RefreshCw, Check } from 'lucide-react';
 import { api } from '../services/api';
 import { GlassCard } from '../components/ui/GlassCard';
 import { GlassButton } from '../components/ui/GlassButton';
 import { DeliverableCard, type DeliverableData } from '../components/Deliverables/DeliverableCard';
 import { FolderTabs } from '../components/Deliverables/FolderTabs';
 import { useDeliverablesStore } from '../store/deliverablesStore';
-import { DEPT_ACCENT } from '../constants/departments';
+import { DEPT_ACCENT, DEPT_LABEL } from '../constants/departments';
 
 interface BackendTask {
   id: string;
@@ -31,6 +31,33 @@ interface BackendTask {
   logs?: { id: string; message: string; level: string; createdAt: string }[];
 }
 
+/** タスク出力から短い要約を取り出す（AI重要度づけの入力用）。 */
+function summaryOf(output: string | null): string {
+  if (!output) return '';
+  try {
+    const o = JSON.parse(output) as Record<string, unknown>;
+    const s = o.summary ?? o.content ?? o.body ?? o.message ?? o.conclusion;
+    if (typeof s === 'string') return s.slice(0, 200);
+  } catch {
+    /* not JSON */
+  }
+  return output.slice(0, 200);
+}
+
+/** タスク出力から共有用リンク（Google Doc等）を取り出す。 */
+function linkOf(output: string | null): string | null {
+  if (!output) return null;
+  try {
+    const o = JSON.parse(output) as Record<string, any>;
+    const u = o.url ?? o.docUrl ?? o.webViewLink ?? o.spreadsheetUrl ?? o?.data?.url;
+    if (typeof u === 'string' && u.startsWith('http')) return u;
+  } catch {
+    /* not JSON */
+  }
+  const m = output.match(/https?:\/\/[^\s"')]+/);
+  return m ? m[0] : null;
+}
+
 /**
  * DeliverablesPage — organized deliverables board.
  * See DESIGN.md §11.4. Uses Glass primitives, DnD-kit for DnD.
@@ -39,6 +66,8 @@ export default function DeliverablesPage() {
   const [tasks, setTasks] = useState<BackendTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [ranking, setRanking] = useState(false);
+  const [shared, setShared] = useState(false);
 
   const {
     folders,
@@ -47,7 +76,18 @@ export default function DeliverablesPage() {
     reorderInFolder,
     moveToFolder,
     addItemIfMissing,
+    importance,
+    importanceOverride,
+    setImportanceBatch,
+    cycleImportance,
   } = useDeliverablesStore();
+
+  // 実効重要度: 手動上書き > AI推定 > 既定(mid)
+  const effImportance = useCallback(
+    (id: string): 'high' | 'mid' | 'low' => importanceOverride[id] ?? importance[id] ?? 'mid',
+    [importance, importanceOverride],
+  );
+  const IMP_RANK: Record<string, number> = { high: 0, mid: 1, low: 2 };
 
   // Fetch tasks
   useEffect(() => {
@@ -80,27 +120,31 @@ export default function DeliverablesPage() {
   // Active folder items
   const activeFolder = folders.find((f) => f.id === activeFolderId);
   const displayItems: DeliverableData[] = useMemo(() => {
+    let base: BackendTask[];
     if (activeFolderId === 'all') {
-      return tasks.map((t) => ({
-        id: t.id,
-        title: t.title,
-        department: t.department,
-        output: t.output,
-        createdAt: t.createdAt,
-      }));
+      base = tasks;
+    } else if (!activeFolder) {
+      base = [];
+    } else {
+      base = activeFolder.itemIds
+        .map((id) => taskMap.get(id))
+        .filter((t): t is BackendTask => !!t);
     }
-    if (!activeFolder) return [];
-    return activeFolder.itemIds
-      .map((id) => taskMap.get(id))
-      .filter((t): t is BackendTask => !!t)
-      .map((t) => ({
-        id: t.id,
-        title: t.title,
-        department: t.department,
-        output: t.output,
-        createdAt: t.createdAt,
-      }));
-  }, [activeFolderId, activeFolder, tasks, taskMap]);
+    // 重要度順（高→中→低）。同重要度は新しい順。
+    const sorted = [...base].sort((a, b) => {
+      const d = IMP_RANK[effImportance(a.id)] - IMP_RANK[effImportance(b.id)];
+      if (d !== 0) return d;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+    return sorted.map((t) => ({
+      id: t.id,
+      title: t.title,
+      department: t.department,
+      output: t.output,
+      createdAt: t.createdAt,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFolderId, activeFolder, tasks, taskMap, effImportance]);
 
   // Sensors
   const sensors = useSensors(
@@ -147,6 +191,71 @@ export default function DeliverablesPage() {
     return counts;
   }, [tasks]);
 
+  // AI 重要度づけ。返らなかった id は mid 固定（再問い合わせループ防止）。
+  const rankItems = useCallback(
+    async (items: BackendTask[]) => {
+      if (items.length === 0) return;
+      setRanking(true);
+      const map: Record<string, 'high' | 'mid' | 'low'> = {};
+      try {
+        const res = await api.post<{ success: boolean; data: { rankings: { id: string; importance: string }[] } }>(
+          '/deliverables/rank',
+          { items: items.map((t) => ({ id: t.id, title: t.title, summary: summaryOf(t.output), department: t.department })) },
+        );
+        for (const r of res.data.data.rankings ?? []) {
+          if (r.id && (r.importance === 'high' || r.importance === 'mid' || r.importance === 'low')) {
+            map[r.id] = r.importance;
+          }
+        }
+      } catch {
+        /* fall through to mid */
+      }
+      for (const t of items) if (!(t.id in map)) map[t.id] = 'mid';
+      setImportanceBatch(map);
+      setRanking(false);
+    },
+    [setImportanceBatch],
+  );
+
+  // 未評価の成果物を自動で重要度づけ
+  useEffect(() => {
+    if (ranking) return;
+    const unranked = tasks.filter((t) => !(t.id in importance) && !(t.id in importanceOverride));
+    if (unranked.length > 0) void rankItems(unranked);
+  }, [tasks, importance, importanceOverride, ranking, rankItems]);
+
+  // 重要度順リストを書き出してコピー / OS共有
+  const shareList = useCallback(async () => {
+    const groups: Record<'high' | 'mid' | 'low', DeliverableData[]> = { high: [], mid: [], low: [] };
+    for (const it of displayItems) groups[effImportance(it.id)].push(it);
+    const head: Record<string, string> = { high: '🔴 重要度：高', mid: '🟡 重要度：中', low: '⚪ 重要度：低' };
+    const lines: string[] = ['【FLOW 成果物リスト】（重要度順）'];
+    (['high', 'mid', 'low'] as const).forEach((k) => {
+      if (groups[k].length === 0) return;
+      lines.push('', head[k]);
+      groups[k].forEach((it, i) => {
+        const link = linkOf(it.output);
+        const dept = DEPT_LABEL[it.department] ?? it.department;
+        lines.push(`${i + 1}. ${it.title}（${dept}）${link ? `\n   ${link}` : ''}`);
+      });
+    });
+    const text = lines.join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      /* clipboard may be blocked */
+    }
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'FLOW 成果物リスト', text });
+      } catch {
+        /* user cancelled */
+      }
+    }
+    setShared(true);
+    setTimeout(() => setShared(false), 2200);
+  }, [displayItems, effImportance]);
+
   return (
     <div className="h-full overflow-y-auto px-4 sm:px-6 pb-6 pt-2">
       <div className="max-w-6xl mx-auto space-y-4">
@@ -164,9 +273,29 @@ export default function DeliverablesPage() {
                 </p>
               </div>
             </div>
-            <GlassButton variant="glass" size="sm" icon={<Sparkles size={13} />}>
-              全 {tasks.length} 件
-            </GlassButton>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1 text-xs text-secondary px-2.5 py-1.5 rounded-full glass-thin">
+                <Sparkles size={13} className="text-accent" /> 全 {tasks.length} 件
+              </span>
+              <GlassButton
+                variant="glass"
+                size="sm"
+                onClick={() => void rankItems(tasks)}
+                loading={ranking}
+                icon={<RefreshCw size={13} />}
+              >
+                AIで重要度を再評価
+              </GlassButton>
+              <GlassButton
+                variant="primary"
+                size="sm"
+                onClick={() => void shareList()}
+                disabled={tasks.length === 0}
+                icon={shared ? <Check size={13} /> : <Share2 size={13} />}
+              >
+                {shared ? 'コピーしました' : '重要度順で共有'}
+              </GlassButton>
+            </div>
           </div>
 
           {/* Department stats strip */}
@@ -227,7 +356,12 @@ export default function DeliverablesPage() {
                 layout
               >
                 {displayItems.map((item) => (
-                  <DeliverableCard key={item.id} item={item} />
+                  <DeliverableCard
+                    key={item.id}
+                    item={item}
+                    importance={effImportance(item.id)}
+                    onCycleImportance={() => cycleImportance(item.id)}
+                  />
                 ))}
               </motion.div>
             )}
@@ -244,6 +378,7 @@ export default function DeliverablesPage() {
                     output: activeTask.output,
                     createdAt: activeTask.createdAt,
                   }}
+                  importance={effImportance(activeTask.id)}
                 />
               </div>
             ) : null}

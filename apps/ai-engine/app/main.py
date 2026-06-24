@@ -240,6 +240,77 @@ async def plan(request: PlanRequest) -> PlanResponse:
     )
 
 
+class RankItem(BaseModel):
+    id: str
+    title: str
+    summary: str = ""
+    department: Optional[str] = None
+
+
+class RankRequest(BaseModel):
+    items: list[RankItem]
+    org_id: str = ""
+    plan: str = "STARTER"
+
+
+class Ranking(BaseModel):
+    id: str
+    importance: str = "mid"  # high | mid | low
+    reason: str = ""
+
+
+class RankResponse(BaseModel):
+    rankings: list[Ranking]
+
+
+@app.post("/rank", response_model=RankResponse)
+async def rank(request: RankRequest) -> RankResponse:
+    """成果物リストをビジネス上の重要度 (high/mid/low) で分類する。"""
+    if not request.items:
+        return RankResponse(rankings=[])
+
+    lines = [
+        f'- id={it.id} | 部署={it.department or "?"} | {it.title}: {(it.summary or "")[:200]}'
+        for it in request.items
+    ]
+    system = (
+        "あなたは中小企業の社長補佐です。以下の成果物リストを、ビジネス上の重要度で high / mid / low に分類してください。\n"
+        "- high: 売上・顧客・契約・重要な意思決定に直結（提案書、見積、重要顧客向けメール、経営判断材料など）\n"
+        "- mid: 通常業務の資料・分析・社内向け\n"
+        "- low: 参考・下書き・定型の軽微なもの\n"
+        '必ず JSON のみを返す: {"rankings":[{"id":"<元のid>","importance":"high|mid|low","reason":"20字程度の理由"}]}。'
+        "すべての id を必ず含めること。"
+    )
+    messages = [
+        ChatMessage(role="system", content=system),
+        ChatMessage(role="user", content="成果物:\n" + "\n".join(lines)),
+    ]
+    valid = {"high", "mid", "low"}
+    by_id: dict[str, Ranking] = {}
+    try:
+        response, _pii, _types = await llm_router.chat(
+            messages=messages, department="GENERAL", org_id=request.org_id, plan=request.plan, json_mode=True
+        )
+        raw = response.content.strip()
+        if "```" in raw:
+            body = raw.split("```", 2)[1]
+            raw = body[4:] if body.startswith("json") else body
+        parsed = json.loads(raw.strip())
+        for r in parsed.get("rankings", []):
+            if not isinstance(r, dict):
+                continue
+            rid = r.get("id")
+            imp = r.get("importance")
+            if rid and imp in valid:
+                by_id[str(rid)] = Ranking(id=str(rid), importance=imp, reason=str(r.get("reason", ""))[:60])
+    except Exception:
+        pass  # 失敗時は全件 mid にフォールバック
+
+    # 欠けた id は mid で補完（全件返す）
+    rankings = [by_id.get(it.id, Ranking(id=it.id, importance="mid", reason="")) for it in request.items]
+    return RankResponse(rankings=rankings)
+
+
 @app.post("/plan/agent", response_model=PlanAgentResponse)
 async def plan_agent_endpoint(request: PlanAgentRequest) -> PlanAgentResponse:
     """自由記述から再利用可能なエージェント定義を推論する (opt-in)。"""

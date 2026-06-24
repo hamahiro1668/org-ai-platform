@@ -15,16 +15,26 @@ export interface DeliverableData {
   createdAt: string;
 }
 
+export type Importance = 'high' | 'mid' | 'low';
+
+const IMPORTANCE_META: Record<Importance, { label: string; color: string }> = {
+  high: { label: '高', color: '#E11D48' },
+  mid: { label: '中', color: '#F59E0B' },
+  low: { label: '低', color: '#94A3B8' },
+};
+
 interface DeliverableCardProps {
   item: DeliverableData;
   onClick?: () => void;
+  importance?: Importance;
+  onCycleImportance?: () => void;
 }
 
 /**
  * DeliverableCard — sortable glass card for the Deliverables board.
  * Uses DESIGN.md GlassCard primitive.
  */
-export function DeliverableCard({ item, onClick }: DeliverableCardProps) {
+export function DeliverableCard({ item, onClick, importance, onCycleImportance }: DeliverableCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.id });
 
@@ -74,6 +84,27 @@ export function DeliverableCard({ item, onClick }: DeliverableCardProps) {
               {item.title}
             </p>
             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+              {(() => {
+                const meta = IMPORTANCE_META[importance ?? 'mid'];
+                return (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCycleImportance?.();
+                    }}
+                    title="クリックで重要度を変更（高→中→低）"
+                    className="flex items-center gap-1 rounded-full px-1.5 py-0.5 text-micro font-bold transition-transform hover:scale-105"
+                    style={{ backgroundColor: `${meta.color}1A`, color: meta.color }}
+                  >
+                    <span
+                      className="inline-block h-1.5 w-1.5 rounded-full"
+                      style={{ backgroundColor: meta.color }}
+                    />
+                    重要度{meta.label}
+                  </button>
+                );
+              })()}
               <GlassBadge tone={item.department} size="xs">
                 {DEPT_LABEL[item.department] ?? item.department}
               </GlassBadge>
