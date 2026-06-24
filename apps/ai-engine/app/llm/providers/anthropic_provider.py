@@ -47,6 +47,24 @@ def _split_system_and_messages(messages: List[ChatMessage]) -> tuple[str, list[d
     return "\n".join(system_parts).strip(), user_messages
 
 
+def _with_cache(system_content: str, user_messages: list[dict]):
+    """プロンプトキャッシュ: システムプロンプト＋会話プレフィックス（直近メッセージまで）を
+    cache_control でキャッシュ対象にする。マルチターンで累積する入力の再送コストを削減（入力50-90%減）。
+    最小キャッシュ長(約1024トークン)未満なら API 側で無視されるため、短い場合も安全に素通しする。"""
+    system_param = (
+        [{"type": "text", "text": system_content, "cache_control": {"type": "ephemeral"}}]
+        if system_content
+        else ""
+    )
+    api_messages = [dict(m) for m in user_messages]
+    if api_messages:
+        last = api_messages[-1]
+        content = last.get("content")
+        if isinstance(content, str):
+            last["content"] = [{"type": "text", "text": content, "cache_control": {"type": "ephemeral"}}]
+    return system_param, api_messages
+
+
 class AnthropicProvider:
     def __init__(self) -> None:
         api_key = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -72,11 +90,12 @@ class AnthropicProvider:
         if json_mode:
             system_content = (system_content + JSON_MODE_HINT).strip()
 
+        system_param, api_messages = _with_cache(system_content, user_messages)
         response = await self.client.messages.create(
             model=model,
             max_tokens=MAX_TOKENS,
-            system=system_content if system_content else "",
-            messages=user_messages,
+            system=system_param,
+            messages=api_messages,
         )
         latency_ms = int((time.monotonic() - start) * 1000)
         content = ""
@@ -102,11 +121,12 @@ class AnthropicProvider:
         if not self.client:
             raise RuntimeError("ANTHROPIC_API_KEY is not set")
         system_content, user_messages = _split_system_and_messages(messages)
+        system_param, api_messages = _with_cache(system_content, user_messages)
         async with self.client.messages.stream(
             model=model,
             max_tokens=MAX_TOKENS,
-            system=system_content if system_content else "",
-            messages=user_messages,
+            system=system_param,
+            messages=api_messages,
         ) as stream:
             async for text in stream.text_stream:
                 yield text
