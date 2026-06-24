@@ -144,9 +144,10 @@ export async function retrieveContext(opts: {
     LIMIT 4
   `);
 
-  // 添付ファイル指定時はしきい値を緩める（ユーザーが明示的にそのファイルについて尋ねている）
-  const fileMinScore = opts.fileIds && opts.fileIds.length > 0 ? 0.2 : 0.4;
-  const files = fileRows.filter((r) => Number(r.score) >= fileMinScore);
+  // 明示的に添付されたファイルは類似度に関わらず必ず含める。
+  // （off-topic な質問でも「資料には記載がありません」と正しく答えられる＝ファイルが見えていない誤応答を防ぐ）
+  const hasExplicitFiles = !!(opts.fileIds && opts.fileIds.length > 0);
+  const files = hasExplicitFiles ? fileRows : fileRows.filter((r) => Number(r.score) >= 0.4);
   const msgs = msgRows.filter((r) => Number(r.score) >= 0.45);
   if (files.length === 0 && msgs.length === 0) return null;
 
