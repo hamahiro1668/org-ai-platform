@@ -12,9 +12,10 @@ from app.llm.providers.anthropic_provider import (
 
 logger = logging.getLogger(__name__)
 
-# プラン → Claude モデル ID
-_PLAN_MODEL = {
-    "STARTER": MODEL_HAIKU,
+# 自由記述の「本文生成」用モデル（品質重視）。STARTER でも Sonnet を下限にし、MAX は Opus。
+# 提案書・報告書・チャット回答などの文章品質を上げるため。
+_PLAN_CONTENT_MODEL = {
+    "STARTER": MODEL_SONNET,
     "PRO": MODEL_SONNET,
     "MAX": MODEL_OPUS,
 }
@@ -29,8 +30,14 @@ def _get_anthropic() -> AnthropicProvider:
     return _anthropic
 
 
-def _resolve_model(plan: str) -> str:
-    return _PLAN_MODEL.get(plan, MODEL_HAIKU)
+def _resolve_model(plan: str, json_mode: bool = False) -> str:
+    """モデル選択。
+    - json_mode（意図分類・capability選択・重要度ランキング等の構造化処理）= 安価で十分な Haiku。
+    - それ以外（自由記述の本文生成）= 品質重視で Sonnet 以上（MAX は Opus）。
+    """
+    if json_mode:
+        return MODEL_HAIKU
+    return _PLAN_CONTENT_MODEL.get(plan, MODEL_SONNET)
 
 
 def _screen_user_messages(messages: List[ChatMessage]) -> Tuple[List[ChatMessage], bool, List[str]]:
@@ -57,7 +64,7 @@ class LLMRouter:
         json_mode: bool = False,
     ) -> Tuple[LLMResponse, bool, List[str]]:
         screened_messages, pii_detected, pii_types = _screen_user_messages(messages)
-        model = _resolve_model(plan)
+        model = _resolve_model(plan, json_mode)
         provider = _get_anthropic()
         response = await provider.chat(screened_messages, model=model, json_mode=json_mode)
         logger.info(f"[LLMRouter] plan={plan} -> Anthropic ({response.model})")
