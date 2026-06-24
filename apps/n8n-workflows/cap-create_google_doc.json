@@ -19,7 +19,8 @@
     {
       "parameters": {
         "operation": "create",
-        "title": "={{ $json.body.title || 'org-ai ドキュメント' }}"
+        "title": "={{ $json.body.title || 'org-ai ドキュメント' }}",
+        "folderId": { "__rl": true, "mode": "id", "value": "root" }
       },
       "id": "create-doc",
       "name": "Create Google Doc",
