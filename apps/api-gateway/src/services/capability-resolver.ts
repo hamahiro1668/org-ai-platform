@@ -129,34 +129,39 @@ async function fetchPlanFromAiEngine(message: string, orgId: string, plan: strin
     where: { orgId, status: { not: 'DISABLED' } },
     select: { name: true, displayName: true, description: true, department: true, inputSchema: true },
   });
-  try {
-    const ctrl = AbortSignal.timeout(15_000);
-    const res = await fetch(`${AI_ENGINE_URL}/plan`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message,
-        org_id: orgId,
-        plan,
-        available_capabilities: caps.map((c) => ({
-          name: c.name,
-          displayName: c.displayName,
-          description: c.description,
-          department: c.department,
-          inputSchema: c.inputSchema,
-        })),
-      }),
-      signal: ctrl,
-    });
-    if (!res.ok) {
-      console.error(`[capability-resolver] AI Engine /plan returned ${res.status}`);
-      return { capability_name: null, args: {}, confidence: 0, reasoning: 'AI Engine /plan 失敗' };
+  const payload = JSON.stringify({
+    message,
+    org_id: orgId,
+    plan,
+    available_capabilities: caps.map((c) => ({
+      name: c.name,
+      displayName: c.displayName,
+      description: c.description,
+      department: c.department,
+      inputSchema: c.inputSchema,
+    })),
+  });
+  // /plan は LLM 呼び出しを含み、一時的に 5xx/タイムアウトしうる（Anthropic の瞬間的な失敗等）。
+  // 単発の失敗で「未対応」と誤表示しないよう 1 回リトライする。
+  let lastReason = 'AI Engine /plan 失敗';
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(`${AI_ENGINE_URL}/plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (res.ok) return (await res.json()) as PlanFromAi;
+      lastReason = `AI Engine /plan ${res.status}`;
+      console.error(`[capability-resolver] AI Engine /plan returned ${res.status} (attempt ${attempt + 1})`);
+    } catch (e) {
+      lastReason = 'AI Engine 到達不可';
+      console.error(`[capability-resolver] fetchPlanFromAiEngine failed (attempt ${attempt + 1}):`, e);
     }
-    return (await res.json()) as PlanFromAi;
-  } catch (e) {
-    console.error('[capability-resolver] fetchPlanFromAiEngine failed:', e);
-    return { capability_name: null, args: {}, confidence: 0, reasoning: 'AI Engine 到達不可' };
+    if (attempt === 0) await new Promise((r) => setTimeout(r, 1200));
   }
+  return { capability_name: null, args: {}, confidence: 0, reasoning: lastReason };
 }
 
 function validateArgs(schema: Schema, args: unknown): { ok: true } | { ok: false; errors: string[] } {
