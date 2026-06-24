@@ -31,6 +31,8 @@ class OrchestateRequest(BaseModel):
     department: Optional[str] = None
     # RAG: アップロードファイル/過去チャットから取得した根拠ブロック（任意）
     context: Optional[str] = None
+    # 直近の会話履歴（ヒアリングが回答を積み上げて進行できるように）
+    history: list[ChatMessage] = []
 
 
 class OrchestrateResponse(BaseModel):

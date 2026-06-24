@@ -314,6 +314,14 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       if (retrieved) ragContext = retrieved.block;
     } catch { /* RAG はベストエフォート */ }
 
+    // 同一セッションの直近履歴（今回のユーザー発話を除く）。ヒアリングが前回の回答を踏まえて進行できるように。
+    const prior = await prisma.message.findMany({
+      where: { sessionId: id, id: { not: userMessage.id } },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    });
+    const history = prior.reverse().map((m) => ({ role: m.role, content: m.content }));
+
     try {
       const res = await fetch(`${aiEngineUrl}/orchestrate/stream`, {
         method: 'POST',
@@ -325,6 +333,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
           department: body.data.department ?? null,
           plan,
           context: ragContext,
+          history,
         }),
       });
 

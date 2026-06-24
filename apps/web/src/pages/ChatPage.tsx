@@ -8,7 +8,6 @@ import {
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
-import { createTaskFromChat } from '../taskmanager/utils/createTaskFromChat';
 import { humanizeTaskManagerError } from '../utils/humanizeLlmError';
 import { AgentSuggestions } from '../components/Chat/AgentSuggestions';
 import { InlineChatResult } from '../components/Chat/InlineChatResult';
@@ -240,25 +239,9 @@ export default function ChatPage() {
           finalAssistantMessage,
         ]);
 
-        // Create backend task (auto-triggers n8n via QUEUED status)
-        const dept = (finalAssistantMessage as Message).department ?? selectedDept ?? 'GENERAL';
-        try {
-          const backendTask = await createTaskFromChat({
-            department: dept,
-            userMessage: lastInputRef.current,
-            aiResponse: (finalAssistantMessage as Message).content,
-          });
-          setInlineTasks((prev) => [...prev, {
-            id: backendTask.id,
-            title: backendTask.title,
-            status: 'executing',
-            afterMessageId: (finalAssistantMessage as Message).id,
-            department: dept,
-            logs: [],
-          }]);
-        } catch {
-          // task creation is optional
-        }
+        // ※ 以前はここでチャット送信ごとに自動でタスクを作成・実行していたが、
+        //   会話の返答とは別に「タスク」が同じ質問を再度返す二重応答＝リピートの原因になっていたため廃止。
+        //   成果物は下の「成果物を作成」バー（明示操作）から生成する。
 
         // 会話が定型業務に育ったらエージェント化を提案（既に提案中/却下済みならスキップ）
         if (!agentSuggestion && !suggestDismissed) {
