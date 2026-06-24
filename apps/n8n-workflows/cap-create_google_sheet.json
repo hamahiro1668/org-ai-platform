@@ -33,6 +33,34 @@
     },
     {
       "parameters": {
+        "method": "POST",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $('Create Google Sheet').item.json.spreadsheetId }}/values/A1:append",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "valueInputOption", "value": "USER_ENTERED" },
+            { "name": "insertDataOption", "value": "OVERWRITE" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ values: [ $('Webhook').item.json.body.headers ].concat($('Webhook').item.json.body.rows) }) }}",
+        "options": {}
+      },
+      "id": "fill-sheet-http",
+      "name": "Fill Sheet",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "name": "Google Sheets OAuth2" }
+      }
+    },
+    {
+      "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify({ status: 'success', error_type: null, message: 'Googleスプレッドシートを作成しました', data: { spreadsheetId: $('Create Google Sheet').item.json.spreadsheetId, url: $('Create Google Sheet').item.json.spreadsheetUrl || ('https://docs.google.com/spreadsheets/d/' + $('Create Google Sheet').item.json.spreadsheetId) } }) }}",
         "options": {}
@@ -46,7 +74,8 @@
   ],
   "connections": {
     "Webhook": { "main": [[{ "node": "Create Google Sheet", "type": "main", "index": 0 }]] },
-    "Create Google Sheet": { "main": [[{ "node": "Respond", "type": "main", "index": 0 }]] }
+    "Create Google Sheet": { "main": [[{ "node": "Fill Sheet", "type": "main", "index": 0 }]] },
+    "Fill Sheet": { "main": [[{ "node": "Respond", "type": "main", "index": 0 }]] }
   },
   "settings": { "executionOrder": "v1", "saveManualExecutions": true },
   "staticData": null,
