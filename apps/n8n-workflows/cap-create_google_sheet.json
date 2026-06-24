@@ -33,27 +33,6 @@
     },
     {
       "parameters": {
-        "operation": "append",
-        "documentId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "={{ $json.spreadsheetId }}"
-        },
-        "sheetName": { "__rl": true, "mode": "name", "value": "Sheet1" },
-        "dataMode": "autoMapInputData",
-        "options": {}
-      },
-      "id": "fill-sheet",
-      "name": "Fill Rows",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4,
-      "position": [720, 300],
-      "credentials": {
-        "googleSheetsOAuth2Api": { "name": "Google Sheets OAuth2" }
-      }
-    },
-    {
-      "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify({ status: 'success', error_type: null, message: 'Googleスプレッドシートを作成しました', data: { spreadsheetId: $('Create Google Sheet').item.json.spreadsheetId, url: $('Create Google Sheet').item.json.spreadsheetUrl || ('https://docs.google.com/spreadsheets/d/' + $('Create Google Sheet').item.json.spreadsheetId) } }) }}",
         "options": {}
@@ -67,8 +46,7 @@
   ],
   "connections": {
     "Webhook": { "main": [[{ "node": "Create Google Sheet", "type": "main", "index": 0 }]] },
-    "Create Google Sheet": { "main": [[{ "node": "Fill Rows", "type": "main", "index": 0 }]] },
-    "Fill Rows": { "main": [[{ "node": "Respond", "type": "main", "index": 0 }]] }
+    "Create Google Sheet": { "main": [[{ "node": "Respond", "type": "main", "index": 0 }]] }
   },
   "settings": { "executionOrder": "v1", "saveManualExecutions": true },
   "staticData": null,
