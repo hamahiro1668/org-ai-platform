@@ -190,6 +190,8 @@ export function buildChainedAgentWorkflowJson(
 ): Record<string, unknown> {
   const path = agentWebhookPath(agent.id);
   const token = N8N_WEBHOOK_AUTH_TOKEN;
+  // 各ノードに自動リトライ（AI Engine/Google の一時的な 503/429・コールドスタートでチェーンが止まらないように）。
+  const RETRY = { retryOnFail: true, maxTries: 4, waitBetweenTries: 3000 };
   const parseCode =
     "let raw=($('AI Plan').item.json.content)||'{}';\n" +
     "raw=raw.replace(/```json/g,'').replace(/```/g,'').trim();\n" +
@@ -208,7 +210,7 @@ export function buildChainedAgentWorkflowJson(
         headerParameters: { parameters: [{ name: 'Content-Type', value: 'application/json' }] },
         sendBody: true, contentType: 'raw', rawContentType: 'application/json', body: '={{ $json.body.llmBody }}', options: {},
       },
-      id: 'ai', name: 'AI Plan', type: 'n8n-nodes-base.httpRequest', typeVersion: 4, position: [460, 300],
+      id: 'ai', name: 'AI Plan', type: 'n8n-nodes-base.httpRequest', typeVersion: 4, position: [460, 300], ...RETRY,
     },
     {
       parameters: { jsCode: parseCode },
@@ -226,14 +228,14 @@ export function buildChainedAgentWorkflowJson(
   if (supported.includes('create_google_doc') && creds.googleDocs) {
     nodes.push({
       parameters: { operation: 'create', title: "={{ $('Parse Args').item.json.docTitle }}", folderId: { __rl: true, mode: 'id', value: 'root' } },
-      id: 'gdoc-create', name: 'Create Doc', type: 'n8n-nodes-base.googleDocs', typeVersion: 2, position: [x, 300],
+      id: 'gdoc-create', name: 'Create Doc', type: 'n8n-nodes-base.googleDocs', typeVersion: 2, position: [x, 300], ...RETRY,
       credentials: { googleDocsOAuth2Api: creds.googleDocs },
     });
     conns[prev] = { main: [[{ node: 'Create Doc', type: 'main', index: 0 }]] };
     prev = 'Create Doc'; x += 210;
     nodes.push({
       parameters: { operation: 'update', documentURL: '={{ $json.documentId || $json.id }}', actionsUi: { actionFields: [{ action: 'insert', text: "={{ $('Parse Args').item.json.docContent }}" }] } },
-      id: 'gdoc-insert', name: 'Insert Content', type: 'n8n-nodes-base.googleDocs', typeVersion: 2, position: [x, 300],
+      id: 'gdoc-insert', name: 'Insert Content', type: 'n8n-nodes-base.googleDocs', typeVersion: 2, position: [x, 300], ...RETRY,
       credentials: { googleDocsOAuth2Api: creds.googleDocs },
     });
     conns[prev] = { main: [[{ node: 'Insert Content', type: 'main', index: 0 }]] };
@@ -253,9 +255,9 @@ export function buildChainedAgentWorkflowJson(
           { name: 'workflowId', value: '={{ $workflow.id }}' },
         ],
       },
-      options: { retry: { retry: { maxTries: 3 } } },
+      options: {},
     },
-    id: 'callback-done', name: 'Callback (Done)', type: 'n8n-nodes-base.httpRequest', typeVersion: 4, position: [x, 300],
+    id: 'callback-done', name: 'Callback (Done)', type: 'n8n-nodes-base.httpRequest', typeVersion: 4, position: [x, 300], ...RETRY,
   });
   conns[prev] = { main: [[{ node: 'Callback (Done)', type: 'main', index: 0 }]] };
 
